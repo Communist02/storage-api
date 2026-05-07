@@ -94,7 +94,7 @@ class Log(Base):
     created_at = Column(DateTime, nullable=False)
     action = Column(VARCHAR(128), nullable=False)
     detail = Column(JSON, nullable=True)
-    result = Column(INT, nullable=False)
+    status = Column(INT, nullable=False)
     user_id = Column(ForeignKey(User.id), nullable=True)
     group_id = Column(ForeignKey(Group.id), nullable=True)
     collection_id = Column(ForeignKey(Collection.id), nullable=True)
@@ -132,7 +132,7 @@ class MainDatabase:
         self.connection = self.engine.connect()
         # Base.metadata.create_all(self.engine)
 
-    def add_user(self, username: str, password: str):
+    def add_user(self, username: str, password: str) -> int:
         private_key, public_key = crypt.random_key_pair()
         hash_password = crypt.hash_argon2_from_password(password)
         encrypted_private_key = crypt.sym_encrypt_key(
@@ -246,7 +246,7 @@ class MainDatabase:
             username = session.execute(query).scalar()
             return username
 
-    def get_collections(self, user_id: int, accessed_to_all: bool = False) -> list:
+    def get_collections(self, user_id: int, accessed_to_all: bool = False) -> list[dict]:
         owner = self.get_owner_collections(user_id)
         accessed = self.get_access_collections(user_id)
         group = self.get_group_collections(user_id)
@@ -256,7 +256,7 @@ class MainDatabase:
             accessed_to_all_list = self.get_access_to_all_collections(user_id)
         return owner + accessed + group + accessed_to_all_list
 
-    def get_owner_collections(self, user_id: int) -> list:
+    def get_owner_collections(self, user_id: int) -> list[dict]:
         result = []
         with Session(self.engine) as session:
             query = select(AccessToCollection.collection_id, Collection.name, AccessToCollection.type_id, Collection.key).where(
@@ -267,7 +267,7 @@ class MainDatabase:
                     {'id': collection[0], 'name': collection[1], 'type': 'owner', 'access_type_id': collection[2], 'is_access_all': collection[3] is not None})
             return result
 
-    def get_access_collections(self, user_id: int) -> list:
+    def get_access_collections(self, user_id: int) -> list[dict]:
         result = []
         with Session(self.engine) as session:
             query = select(AccessToCollection.collection_id, Collection.name, AccessToCollection.type_id).where(
@@ -278,7 +278,7 @@ class MainDatabase:
                     {'id': collection[0], 'name': collection[1], 'type': 'access', 'access_type_id': collection[2]})
             return result
 
-    def get_group_collections(self, user_id: int) -> list:
+    def get_group_collections(self, user_id: int) -> list[dict]:
         result = []
         with Session(self.engine) as session:
             query = select(
@@ -300,7 +300,7 @@ class MainDatabase:
                     {'id': collection[0], 'name': collection[1], 'type': 'group', 'access_type_id': collection[2]})
             return result
 
-    def get_access_to_all_collections(self, user_id: int) -> list[str | int]:
+    def get_access_to_all_collections(self, user_id: int) -> list[dict]:
         result = []
         with Session(self.engine) as session:
             query = select(Collection.id, Collection.name).where(
@@ -321,7 +321,7 @@ class MainDatabase:
                     {'id': collection[0], 'name': collection[1], 'type': 'access_to_all', 'access_type_id': 3})
             return result
 
-    def get_specific_access_to_all_collections(self, user_id: int, collection_ids: list[int]) -> list:
+    def get_specific_access_to_all_collections(self, user_id: int, collection_ids: list[int]) -> list[dict]:
         result = []
         with Session(self.engine) as session:
             query = select(Collection.id, Collection.name).where(
@@ -343,7 +343,7 @@ class MainDatabase:
                     {'id': collection[0], 'name': collection[1], 'type': 'access_to_all', 'access_type_id': 3})
             return result
 
-    def get_absolute_access_to_all_collections(self) -> list:
+    def get_absolute_access_to_all_collections(self) -> list[dict]:
         result = []
         with Session(self.engine) as session:
             query = select(Collection.id, Collection.name).where(
@@ -445,7 +445,7 @@ class MainDatabase:
             session.execute(query)
             session.commit()
 
-    def get_groups(self, user_id: int) -> list:
+    def get_groups(self, user_id: int) -> list[dict]:
         with Session(self.engine) as session:
             query = select(Group.id, Group.title, Group.description, GroupUser.role_id).where(
                 (GroupUser.user_id == user_id) & (GroupUser.group_id == Group.id))
@@ -470,7 +470,7 @@ class MainDatabase:
             session.execute(query)
             session.commit()
 
-    def get_other_users(self, user_id: int) -> list:
+    def get_other_users(self, user_id: int) -> list[dict]:
         with Session(self.engine) as session:
             query = select(User.id, User.username).where(User.id != user_id)
             result = session.execute(query).all()
@@ -479,7 +479,7 @@ class MainDatabase:
                 users.append({'id': user[0], 'username': user[1]})
             return users
 
-    def get_access_to_collection(self, collection_id: int, user_id: int) -> list:
+    def get_access_to_collection(self, collection_id: int, user_id: int) -> list[dict]:
         with Session(self.engine) as session:
             query = select(
                 AccessToCollection.id,
@@ -530,7 +530,7 @@ class MainDatabase:
             session.execute(query)
             session.commit()
 
-    def get_group_users(self, group_id: int, user_id: int) -> list:
+    def get_group_users(self, group_id: int, user_id: int) -> list[dict]:
         with Session(self.engine) as session:
             query = select(GroupUser.user_id, User.username, GroupUser.role_id).where(
                 (GroupUser.group_id == group_id) &
@@ -546,7 +546,7 @@ class MainDatabase:
                     {'id': user[0], 'username': user[1], 'role_id': user[2]})
             return users
 
-    def get_access_types(self) -> list:
+    def get_access_types(self) -> list[dict]:
         with Session(self.engine) as session:
             query = select(AccessType.id, AccessType.name).where(
                 AccessType.id != 1)
@@ -572,17 +572,17 @@ class MainDatabase:
                 session.execute(query)
                 session.commit()
 
-    def add_log(self, action: str, result: int, detail: dict | None, user_id: int | None = None, group_id: int | None = None, collection_id: int | None = None) -> None:
+    def add_log(self, action: str, status: int, detail: dict | None, user_id: int | None = None, group_id: int | None = None, collection_id: int | None = None) -> None:
         try:
             with Session(self.engine) as session:
                 query = insert(Log).values(created_at=datetime.now(), action=action,
-                                           result=result, detail=detail, user_id=user_id, group_id=group_id, collection_id=collection_id)
+                                           status=status, detail=detail, user_id=user_id, group_id=group_id, collection_id=collection_id)
                 session.execute(query)
                 session.commit()
         except Exception as error:
             with Session(self.engine) as session:
                 query = insert(Log).values(created_at=datetime.now(), action='add_log',
-                                           result=500, detail={'error': error, 'action': action}, user_id=user_id, group_id=group_id)
+                                           status=500, detail={'error': error, 'action': action}, user_id=user_id, group_id=group_id)
                 session.execute(query)
                 session.commit()
 
@@ -633,7 +633,7 @@ class MainDatabase:
             else:
                 return False
 
-    def get_user_info(self, user_id: int):
+    def get_user_info(self, user_id: int) -> dict[str, int | str]:
         with Session(self.engine) as session:
             query = select(User.id, User.username).where(User.id == user_id)
             user = session.execute(query).one()
@@ -686,9 +686,9 @@ class MainDatabase:
             session.execute(query)
             session.commit()
 
-    def get_logs(self, user_id: int) -> list:
+    def get_logs(self, user_id: int) -> list[dict]:
         with Session(self.engine) as session:
-            query = select(Log.id, Log.created_at, Log.action, Log.result,
+            query = select(Log.id, Log.created_at, Log.action, Log.status,
                            Log.detail, Log.group_id, Log.collection_id).where(Log.user_id == user_id).order_by(desc(Log.id)).limit(500)
             result = session.execute(query).all()
             logs = []
@@ -697,10 +697,10 @@ class MainDatabase:
                     {'id': log[0], 'date_time': log[1], 'action': log[2], 'result': log[3], 'message': log[4], 'group_id': log[5], 'collection_id': log[6]})
             return logs
 
-    def get_history_collection(self, user_id: int, collection_id: int) -> list:
+    def get_history_collection(self, user_id: int, collection_id: int) -> list[dict]:
         with Session(self.engine) as session:
             query = select(
-                Log.id, Log.created_at, Log.action, Log.result, Log.detail, Log.group_id, Log.collection_id, User.username,
+                Log.id, Log.created_at, Log.action, Log.status, Log.detail, Log.group_id, Log.collection_id, User.username,
             ).where(
                 (Log.collection_id == collection_id) &
                 (Log.collection_id.in_(

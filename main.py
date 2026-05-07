@@ -338,13 +338,8 @@ async def create_collection(request: CreateCollectionRequest, session: dict = De
                          {'error': error.detail, 'name': request.name}, user_id=session['user_id'])
         raise error
     except Exception as error:
-        database.add_log('create_collection', 500,
+        database.add_log('create_collection_after_create_bucket', 500,
                          {'error': str(error), 'name': request.name}, user_id=session['user_id'])
-        try:
-            await minio.remove_bucket(request.name, session['jwt_token'])
-        except HTTPException as e:
-            database.add_log('remove_collection_after_create', e.status_code, {
-                'error': e.detail, 'collection_name': request.name}, user_id=session['user_id'])
         raise error
     return collection_id
 
