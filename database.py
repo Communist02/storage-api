@@ -582,7 +582,7 @@ class MainDatabase:
         except Exception as error:
             with Session(self.engine) as session:
                 query = insert(Log).values(created_at=datetime.now(), action='add_log',
-                                           status=500, detail={'error': error, 'action': action}, user_id=user_id, group_id=group_id)
+                                           status=500, detail={'error': str(error), 'action': action}, user_id=user_id, group_id=group_id)
                 session.execute(query)
                 session.commit()
 
@@ -694,7 +694,7 @@ class MainDatabase:
             logs = []
             for log in result:
                 logs.append(
-                    {'id': log[0], 'date_time': log[1], 'action': log[2], 'result': log[3], 'message': log[4], 'group_id': log[5], 'collection_id': log[6]})
+                    {'id': log[0], 'created_at': log[1], 'action': log[2], 'status': log[3], 'detail': log[4], 'group_id': log[5], 'collection_id': log[6]})
             return logs
 
     def get_history_collection(self, user_id: int, collection_id: int) -> list[dict]:
@@ -715,7 +715,7 @@ class MainDatabase:
             logs = []
             for log in result:
                 logs.append(
-                    {'id': log[0], 'date_time': log[1], 'action': log[2], 'result': log[3], 'message': json.loads(log[4]), 'group_id': log[5], 'collection_id': log[6], 'username': log[7]})
+                    {'id': log[0], 'created_at': log[1], 'action': log[2], 'status': log[3], 'detail': log[4], 'group_id': log[5], 'collection_id': log[6], 'username': log[7]})
             return logs
 
     def change_access_to_all(self, user_id: int, collection_id: int, is_access: bool, key: bytes):

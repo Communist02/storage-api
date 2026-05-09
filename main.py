@@ -483,12 +483,22 @@ async def delete_user_to_group(group_id: int, user_id: int, session: dict = Depe
 
 @app.get('/group_users')  # safe+
 async def get_group_users(group_id: int, session: dict = Depends(get_current_user)) -> list | None:
-    return database.get_group_users(group_id, session['user_id'])
+    try:
+        return database.get_group_users(group_id, session['user_id'])
+    except Exception as error:
+        database.add_log('get_group_users', 500, {'error': str(
+            error), 'user_id': session['user_id']}, user_id=session['user_id'], group_id=group_id)
+        raise error
 
 
 @app.get('/access_types')  # safe+
 async def get_access_types(session: dict = Depends(get_current_user)) -> list | None:
-    return database.get_access_types()
+    try:
+        return database.get_access_types()
+    except Exception as error:
+        database.add_log('get_access_types', 500, {'error': str(
+            error)}, user_id=session['user_id'])
+        raise error
 
 
 @app.post('/transfer_power_to_group')  # safe+
@@ -535,7 +545,12 @@ async def change_role_in_group(group_id: int, user_id: int, role_id: int, sessio
 
 @app.get('/user_info')  # safe+
 async def get_user_info(session: dict = Depends(get_current_user)) -> dict[str, int | str]:
-    return database.get_user_info(session['user_id'])
+    try:
+        return database.get_user_info(session['user_id'])
+    except Exception as error:
+        database.add_log('get_user_info', 500, {'error': str(
+            error)}, user_id=session['user_id'])
+        raise error
 
 
 @app.post('/change_access_type')  # safe+ logs+
@@ -575,7 +590,12 @@ async def change_group_info(request: ChangeGroupInfoRequest, session: dict = Dep
 
 @app.get('/logs')  # safe+
 async def get_logs(session: dict = Depends(get_current_user)) -> list:
-    return database.get_logs(session['user_id'])
+    try:
+        return database.get_logs(session['user_id'])
+    except Exception as error:
+        database.add_log('get_logs', 500, {'error': str(
+            error)}, user_id=session['user_id'])
+        raise error
 
 
 @app.get('/collection/{collection_id}/history')  # safe+
