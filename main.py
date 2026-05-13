@@ -96,6 +96,11 @@ app.add_middleware(
 )
 
 
+@app.get('/session')
+async def check_session(session: dict = Depends(get_current_user)) -> dict[str, str | bool | int]:
+    return {'authenticated': True, 'user_id': session['user_id']}
+
+
 @app.get('/collections')
 async def get_list_collections(session: dict = Depends(get_current_user)) -> list | None:
     return database.get_collections(session['user_id'])

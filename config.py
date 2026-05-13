@@ -25,7 +25,7 @@ required_fields = [
 
 default_config = {
     's3_url': 'localhost:9000',
-    'auth_api_url': 'http://localhost:8080',
+    'auth_api_url': 'http://localhost:8081',
     'index_api_url': 'http://localhost:8010',
     'access_key': 'admin',
     'secret_key': 'password',
