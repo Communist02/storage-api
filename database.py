@@ -88,7 +88,7 @@ class AccessToCollection(Base):
 
 class Log(Base):
     __tablename__ = 'logs'
-    __table_args__ = {'schema': 'storage'}
+    __table_args__ = {'schema': 'logs'}
 
     id = Column(INT, primary_key=True, autoincrement=True)
     created_at = Column(DateTime, nullable=False)

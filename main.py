@@ -90,9 +90,9 @@ app = FastAPI(lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
     allow_credentials=True,
-    allow_headers=["*"]
+    allow_headers=["Content-Type", "Authorization"]
 )
 
 
@@ -417,7 +417,12 @@ async def add_user_to_group(request: AddUserToGroupRequest, session: dict = Depe
 
 @app.get('/groups')  # safe+
 async def get_groups(session: dict = Depends(get_current_user)) -> list | None:
-    return database.get_groups(session['user_id'])
+    try:
+        return database.get_groups(session['user_id'])
+    except Exception as error:
+        database.add_log('get_groups', 500, {
+                         'error': str(error)}, user_id=session['user_id'])
+        raise error
 
 
 @app.delete('/collection/{collection_id}')  # safe+ logs+
@@ -430,7 +435,13 @@ async def remove_collection(collection_id: int, session: dict = Depends(get_curr
                          'error': error.detail, 'collection_id': collection_id, 'collection_name': collection_name}, user_id=session['user_id'])
         if error.status_code != 410:
             raise error
-    database.remove_collection(collection_id, session['user_id'])
+
+    try:
+        database.remove_collection(collection_id, session['user_id'])
+    except Exception as error:
+        database.add_log('remove_collection_in_database', 500, {
+                         'error': str(error), 'collection_id': collection_id, 'collection_name': collection_name}, user_id=session['user_id'])
+        raise error
     database.add_log('remove_collection', 200, {
                      'collection_id': collection_id, 'collection_name': collection_name}, user_id=session['user_id'])
     username = database.get_username(session['user_id'])
@@ -440,12 +451,22 @@ async def remove_collection(collection_id: int, session: dict = Depends(get_curr
 
 @app.get('/other_users')  # safe+
 async def get_other_users(session: dict = Depends(get_current_user)) -> list | None:
-    return database.get_other_users(session['user_id'])
+    try:
+        return database.get_other_users(session['user_id'])
+    except Exception as error:
+        database.add_log('get_other_users', 500, {
+                         'error': str(error)}, user_id=session['user_id'])
+        raise error
 
 
 @app.get('/collection/{collection_id}/access')  # safe+
 async def get_access_to_collection(collection_id: int, session: dict = Depends(get_current_user)) -> list | None:
-    return database.get_access_to_collection(collection_id, session['user_id'])
+    try:
+        return database.get_access_to_collection(collection_id, session['user_id'])
+    except Exception as error:
+        database.add_log('get_access_to_collection', 500, {'error': str(
+            error)}, user_id=session['user_id'], collection_id=collection_id)
+        raise error
 
 
 @app.delete('collections/access')  # safe+ logs+
@@ -605,7 +626,12 @@ async def get_logs(session: dict = Depends(get_current_user)) -> list:
 
 @app.get('/collection/{collection_id}/history')  # safe+
 async def get_history_collection(collection_id: int, session: dict = Depends(get_current_user)) -> list:
-    return database.get_history_collection(session['user_id'], collection_id)
+    try:
+        return database.get_history_collection(session['user_id'], collection_id)
+    except Exception as error:
+        database.add_log('get_history_collection', 500, {'error': str(
+            error)}, user_id=session['user_id'], collection_id=collection_id)
+        raise error
 
 
 @app.post('/collection/{collection_id}/change_info')  # safe+ logs+
