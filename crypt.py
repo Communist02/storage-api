@@ -4,25 +4,9 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import x25519
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 import os
-from argon2.low_level import hash_secret_raw, Type
-from hashlib import sha256
 
-
-def hash_argon2_from_password(password: str) -> bytes:
-    password_bytes = password.encode()
-    salt = sha256(password_bytes).digest()[:16]
-
-    hash = hash_secret_raw(
-        secret=password_bytes,
-        salt=salt,
-        time_cost=3,
-        memory_cost=64 * 1024,  # 64 MiB
-        parallelism=2,
-        hash_len=32,
-        type=Type.ID
-    )
-    return hash
 
 
 def hash_division(hash: bytes) -> tuple[bytes, bytes]:
@@ -36,9 +20,13 @@ def hash_reconstruct(part1: bytes, part2: bytes) -> bytes:
     return bytes(a ^ b for a, b in zip(part1, part2))
 
 
-def key_pair_from_hash(hash: bytes) -> tuple[bytes, bytes]:
-    """return pivate_key, public_key"""
-    private_key = x25519.X25519PrivateKey.from_private_bytes(hash)
+def generate_x25519_keypair() -> tuple[bytes, bytes]:
+    """
+    Returns:
+        (private_key_raw, public_key_raw)
+    """
+
+    private_key = x25519.X25519PrivateKey.generate()
     public_key = private_key.public_key()
 
     return (
@@ -52,11 +40,6 @@ def key_pair_from_hash(hash: bytes) -> tuple[bytes, bytes]:
             format=serialization.PublicFormat.Raw
         )
     )
-
-
-def random_key_pair() -> tuple[bytes, bytes]:
-    """return pivate_key, public_key"""
-    return key_pair_from_hash(secrets.token_bytes(32))
 
 
 def asym_encrypt_key(secret_key: bytes, public_key: bytes) -> bytes:
@@ -73,35 +56,38 @@ def asym_encrypt_key(secret_key: bytes, public_key: bytes) -> bytes:
     # Вычисляем общий секрет ECDH
     shared_secret = ephemeral_private_key.exchange(recipient_public_key)
 
+    salt = os.urandom(32)
+
     # Производный ключ для AES-GCM через HKDF
     hkdf = HKDF(
         algorithm=hashes.SHA256(),
         length=32,
-        salt=None,
-        info=b'encryption-key-context',
+        salt=salt,
+        info=b'x25519-ecies-v1-aes256',
         backend=default_backend()
     )
     aes_key = hkdf.derive(shared_secret)
 
     # Шифрование с использованием AES-GCM
     nonce = os.urandom(12)
-    cipher = Cipher(algorithms.AES(aes_key), modes.GCM(
-        nonce), backend=default_backend())
-    encryptor = cipher.encryptor()
-    ciphertext = encryptor.update(secret_key) + encryptor.finalize()
+    ciphertext_with_tag = AESGCM(aes_key).encrypt(
+        nonce,
+        secret_key,
+        associated_data=None  # можно добавить binding данных
+    )
 
-    # Объединяем компоненты: временный публичный ключ + nonce + тег + шифртекст
-    return ephemeral_public_key + nonce + encryptor.tag + ciphertext
+    # формат: salt + ephemeral_pub + nonce + ciphertext
+    return salt + ephemeral_public_key + nonce + ciphertext_with_tag
 
 
 def asym_decrypt_key(encrypted_key: bytes, private_key: bytes) -> bytes:
     """Decrypts a secret key using X25519 private key and AES-GCM."""
 
     # Разбор компонентов из входных данных
-    ephemeral_public_key = encrypted_key[:32]
-    nonce = encrypted_key[32:44]
-    tag = encrypted_key[44:60]
-    ciphertext = encrypted_key[60:]
+    salt = encrypted_key[:32]
+    ephemeral_public_key = encrypted_key[32:64]
+    nonce = encrypted_key[64:76]
+    ciphertext_with_tag = encrypted_key[76:]
 
     # Загружаем ключи
     private_key_obj = x25519.X25519PrivateKey.from_private_bytes(private_key)
@@ -115,39 +101,42 @@ def asym_decrypt_key(encrypted_key: bytes, private_key: bytes) -> bytes:
     hkdf = HKDF(
         algorithm=hashes.SHA256(),
         length=32,
-        salt=None,
-        info=b'encryption-key-context',
+        salt=salt,
+        info=b'x25519-ecies-v1-aes256',
         backend=default_backend()
     )
-    aes_key = hkdf.derive(shared_secret)
 
     # Расшифровка с использованием AES-GCM
-    cipher = Cipher(algorithms.AES(aes_key), modes.GCM(
-        nonce, tag), backend=default_backend())
-    decryptor = cipher.decryptor()
-    return decryptor.update(ciphertext) + decryptor.finalize()
+    aes_key = hkdf.derive(shared_secret)
+
+    # если tag неверный → автоматически exception
+    return AESGCM(aes_key).decrypt(
+        nonce,
+        ciphertext_with_tag,
+        associated_data=None
+    )
 
 
 def sym_encrypt_key(secret: bytes, aes_key: bytes) -> bytes:
     assert len(secret) == 32
     assert len(aes_key) == 32
 
-    nonce = os.urandom(16)
-    cipher = Cipher(algorithms.AES(aes_key), modes.CTR(
-        nonce), backend=default_backend())
+    iv = secrets.token_bytes(16)
+    cipher = Cipher(algorithms.AES(aes_key), modes.CBC(iv),
+                    backend=default_backend())
     encryptor = cipher.encryptor()
     encrypted_key = encryptor.update(secret) + encryptor.finalize()
-    return nonce + encrypted_key
+    return iv + encrypted_key
 
 
-def sym_decrypt_key(ciphertext: bytes, aes_key: bytes):
+def sym_decrypt_key(ciphertext: bytes, aes_key: bytes) -> bytes:
     assert len(ciphertext) == 48
     assert len(aes_key) == 32
 
-    nonce = ciphertext[:16]
+    iv = ciphertext[:16]
     encrypted_key = ciphertext[16:]
 
-    cipher = Cipher(algorithms.AES(aes_key), modes.CTR(
-        nonce), backend=default_backend())
+    cipher = Cipher(algorithms.AES(aes_key), modes.CBC(iv),
+                    backend=default_backend())
     decryptor = cipher.decryptor()
     return decryptor.update(encrypted_key) + decryptor.finalize()

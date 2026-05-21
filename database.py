@@ -4,7 +4,6 @@ from sqlalchemy.orm import DeclarativeBase, Session
 from sqlalchemy import create_engine, select, insert
 import secrets
 import crypt
-import json
 from config import config
 
 
@@ -132,19 +131,6 @@ class MainDatabase:
         self.connection = self.engine.connect()
         # Base.metadata.create_all(self.engine)
 
-    def add_user(self, username: str, password: str) -> int:
-        private_key, public_key = crypt.random_key_pair()
-        hash_password = crypt.hash_argon2_from_password(password)
-        encrypted_private_key = crypt.sym_encrypt_key(
-            private_key, hash_password)
-
-        with Session(self.engine) as session:
-            query = insert(User).values(
-                username=username, encrypted_private_key=encrypted_private_key, public_key=public_key).returning(User.id)
-            user_id = session.execute(query).scalar_one()
-            session.commit()
-            return user_id
-
     def create_collection(self, name: str, user_id: int) -> int:
         collection_key = secrets.token_bytes(32)
         with Session(self.engine) as session:
@@ -165,7 +151,7 @@ class MainDatabase:
 
     def create_group(self, user_id: int, title: str, description: str) -> int:
         with Session(self.engine) as session:
-            group_private_key, group_public_key = crypt.random_key_pair()
+            group_private_key, group_public_key = crypt.generate_x25519_keypair()
             query = insert(Group).values(
                 title=title, description=description, public_key=group_public_key).returning(Group.id)
             group_id = session.execute(query).scalar_one()

@@ -1,7 +1,6 @@
 fastapi[standard]
 minio
 cryptography
-argon2-cffi
 SQLAlchemy
 psycopg2-binary
 ldap3
