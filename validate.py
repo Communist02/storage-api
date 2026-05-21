@@ -1,5 +1,5 @@
 import base64
-from fastapi import Depends, HTTPException
+from fastapi import Cookie, Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 import httpx
 from config import config
@@ -16,26 +16,34 @@ async def validate_token(token: str) -> dict | None:
     async with httpx.AsyncClient(verify=not config.debug_mode) as client:
         response = await client.get(
             f'{config.auth_api_url}/introspect',
-            headers={'Authorization': f'Beaver {token[:32]}'},
+            headers={'Authorization': f'Beaver {token}'},
         )
     if response.status_code == 200:
         session = response.json()
         if session['active'] == True:
             session['hash1'] = base64.urlsafe_b64decode(
                 session['hash1'].encode())
-            session['hash2'] = base64.urlsafe_b64decode(token[32:].encode())
+            session['hash2'] = base64.urlsafe_b64decode(session['hash2'].encode())
             session['jwt_token'] = session['jwt']
             return session
 
 
 async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security)
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    cookie_token: str | None = Cookie(None, alias="token")
 ) -> dict:
     """
     Зависимость для получения текущего пользователя.
     Используется в защищенных маршрутах.
     """
-    token = credentials.credentials
+    # Сначала проверяем заголовок Authorization
+    if credentials:
+        token = credentials.credentials
+    # Если нет в заголовке, проверяем cookie
+    elif cookie_token:
+        token = cookie_token
+    else:
+        token = None
 
     # Проверяем формат (опционально)
     if not token or len(token) < 32:
