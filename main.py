@@ -32,10 +32,6 @@ class NewFolderRequest(BaseModel):
     path: str
 
 
-class CreateCollectionRequest(BaseModel):
-    name: str
-
-
 class CreateGroupRequest(BaseModel):
     title: str
     description: str
@@ -59,10 +55,6 @@ class AddUserToGroupRequest(BaseModel):
 class ChangeGroupInfoRequest(BaseModel):
     title: str
     description: str
-
-
-class SpecificListCollectionsRequest(BaseModel):
-    collection_ids: list[int]
 
 
 database = MainDatabase()
@@ -309,24 +301,24 @@ async def upload_file(file: UploadFile, collection_id: int, path: str = '/', ses
 
 
 @app.post('/collections/create')  # safe+ logs+
-async def create_collection(request: CreateCollectionRequest, session: dict = Depends(get_current_user)) -> int:
+async def create_collection(name: str, session: dict = Depends(get_current_user)) -> int:
     try:
-        request.name = request.name.strip()
-        await minio.create_bucket(request.name, session['jwt_token'])
+        name = name.strip()
+        await minio.create_bucket(name, session['jwt_token'])
         collection_id = database.create_collection(
-            request.name, session['user_id'])
+            name, session['user_id'])
         database.add_log('create_collection', 200,
-                         {'name': request.name}, user_id=session['user_id'], collection_id=collection_id)
+                         {'name': name}, user_id=session['user_id'], collection_id=collection_id)
         username = database.get_username(session['user_id'])
         if username:
             await create_policy_to_user(username, database.get_collections(session['user_id']))
     except HTTPException as error:
         database.add_log('create_collection', error.status_code,
-                         {'error': error.detail, 'name': request.name}, user_id=session['user_id'])
+                         {'error': error.detail, 'name': name}, user_id=session['user_id'])
         raise error
     except Exception as error:
         database.add_log('create_collection_after_create_bucket', 500,
-                         {'error': str(error), 'name': request.name}, user_id=session['user_id'])
+                         {'error': str(error), 'name': name}, user_id=session['user_id'])
         raise error
     return collection_id
 
@@ -389,7 +381,7 @@ async def create_group(request: CreateGroupRequest, session: dict = Depends(get_
         raise error
 
 
-@app.post('/groups/{group_id}/add_user')  # safe+ logs+
+@app.post('/groups/{group_id}/users')  # safe+ logs+
 async def add_user_to_group(request: AddUserToGroupRequest, group_id: int, session: dict = Depends(get_current_user)):
     key = hash_reconstruct(session['hash1'], session['hash2'])
     try:
@@ -472,7 +464,7 @@ async def delete_access_to_collection(access_id: int, session: dict = Depends(ge
         raise error
 
 
-@app.delete('/groups/{group_id}/user')  # safe+ logs+
+@app.delete('/groups/{group_id}/users/{user_id}')  # safe+ logs+
 async def delete_user_to_group(group_id: int, user_id: int, session: dict = Depends(get_current_user)) -> list | None:
     try:
         database.delete_user_to_group(
@@ -508,7 +500,7 @@ async def get_access_types(session: dict = Depends(get_current_user)) -> list | 
         raise error
 
 
-@app.post('/groups/{group_id}/transfer_power')  # safe+
+@app.post('/groups/{group_id}/users/{user_id}/transfer_power')  # safe+
 async def transfer_power_to_group(group_id: int, user_id: int, session: dict = Depends(get_current_user)):
     try:
         database.transfer_power_to_group(
@@ -537,7 +529,7 @@ async def exit_group(group_id: int, session: dict = Depends(get_current_user)):
         raise error
 
 
-@app.patch('/groups/{group_id}/user/role')  # safe+ logs+
+@app.patch('/groups/{group_id}/users/{user_id}/role')  # safe+ logs+
 async def change_role_in_group(group_id: int, user_id: int, role_id: int, session: dict = Depends(get_current_user)):
     try:
         database.change_role_in_group(
