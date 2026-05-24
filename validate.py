@@ -1,5 +1,5 @@
 import base64
-from fastapi import Cookie, Depends, HTTPException
+from fastapi import Cookie, Depends, HTTPException, Query
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 import httpx
 from config import config
@@ -30,16 +30,18 @@ async def validate_token(token: str) -> dict | None:
 
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
-    cookie_token: str | None = Cookie(None, alias="token")
+    cookie_token: str | None = Cookie(None, alias="token"),
+    query_token: str | None = Query(None, alias="token")
 ) -> dict:
     """
     Зависимость для получения текущего пользователя.
     Используется в защищенных маршрутах.
     """
-    # Сначала проверяем заголовок Authorization
-    if credentials:
+
+    if query_token:
+        token = query_token
+    elif credentials and credentials.credentials:
         token = credentials.credentials
-    # Если нет в заголовке, проверяем cookie
     elif cookie_token:
         token = cookie_token
     else:

@@ -12,7 +12,7 @@ from database import MainDatabase
 from crypt import hash_reconstruct
 from config import config
 from opensearch import OpenSearchManager
-from validate import get_current_user, validate_token
+from validate import get_current_user
 
 
 class CopyRequest(BaseModel):
@@ -98,13 +98,10 @@ async def check_session(session: dict = Depends(get_current_user)) -> dict[str, 
 
 
 @app.get('/collections')
-async def get_list_collections(session: dict = Depends(get_current_user)) -> list | None:
+async def get_list_collections(session: dict = Depends(get_current_user), ids: str | None = None) -> list[dict]:
+    if ids:
+        return database.get_specific_access_to_all_collections(session['user_id'], [int(i) for i in ids.split(',')])
     return database.get_collections(session['user_id'])
-
-
-@app.post('/collections/specific')
-async def get_specific_list_collections(request: SpecificListCollectionsRequest, session: dict = Depends(get_current_user)) -> list:
-    return database.get_specific_access_to_all_collections(session['user_id'], request.collection_ids)
 
 
 @app.get('/collections/{collection_id}/list/{path:path}')  # access+
@@ -125,14 +122,7 @@ async def get_list_files(collection_id: int, path: str, recursive: bool = True, 
 
 
 @app.get('/collections/{collection_id}/files/{path:path}')  # access+
-async def get_file(collection_id: int, path: str, request: Request, token: str, preview: bool = False) -> StreamingResponse:
-    session = await validate_token(token)
-    if not session:
-        raise HTTPException(
-            status_code=401,
-            detail='Token is invalid or expired'
-        )
-
+async def get_file(collection_id: int, path: str, request: Request, preview: bool = False, session: dict = Depends(get_current_user)) -> StreamingResponse:
     access = [1, 2, 3]
     if database.get_type_access(collection_id, session['user_id']) in access:
         try:
@@ -158,14 +148,7 @@ async def get_file(collection_id: int, path: str, request: Request, token: str, 
 
 
 @app.get('/collections/{collection_id}/archive')  # access+
-async def get_files(collection_id: int, files: str, token: str) -> StreamingResponse:
-    session = await validate_token(token)
-    if not session:
-        raise HTTPException(
-            status_code=401,
-            detail='Token is invalid or expired'
-        )
-
+async def get_files(collection_id: int, files: str, session: dict = Depends(get_current_user)) -> StreamingResponse:
     access = [1, 2, 3]
     if database.get_type_access(collection_id, session['user_id']) in access:
         try:
@@ -296,8 +279,7 @@ async def create_directory(collection_id: int, request: NewFolderRequest, sessio
         )
 
 
-@app.post('/collections/{collection_id}/upload/{path:path}')  # access+
-@app.post('/collections/{collection_id}/upload')
+@app.post('/collections/{collection_id}/upload')  # access+
 async def upload_file(file: UploadFile, collection_id: int, path: str = '/', session: dict = Depends(get_current_user)) -> str | None:
     access = [1, 2, 4]
     access_type = database.get_type_access(
@@ -470,7 +452,7 @@ async def get_access_to_collection(collection_id: int, session: dict = Depends(g
         raise error
 
 
-@app.delete('/collections/{collection_id}/access')  # safe+ logs+
+@app.delete('/access/{access_id}')  # safe+ logs+
 async def delete_access_to_collection(access_id: int, session: dict = Depends(get_current_user)) -> list | None:
     try:
         access_info = database.get_access_info(access_id)
