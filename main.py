@@ -86,13 +86,13 @@ app = FastAPI(lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+    allow_methods=["GET", "POST", "DELETE", "OPTIONS", "PATCH"],
     allow_credentials=True,
     allow_headers=["Content-Type", "Authorization"]
 )
 
 
-@app.get('/session')
+@app.get('user/session')
 async def check_session(session: dict = Depends(get_current_user)) -> dict[str, str | bool | int]:
     return {'authenticated': True, 'user_id': session['user_id']}
 
@@ -331,8 +331,17 @@ async def create_collection(request: CreateCollectionRequest, session: dict = De
     return collection_id
 
 
-# safe+ access- logs+
-@app.post('/collections/{collection_id}/give_access_user')
+@app.get('/collections/{collection_id}/access')  # safe+
+async def get_access_to_collection(collection_id: int, session: dict = Depends(get_current_user)) -> list | None:
+    try:
+        return database.get_access_to_collection(collection_id, session['user_id'])
+    except Exception as error:
+        database.add_log('get_access_to_collection', 500, {'error': str(
+            error)}, user_id=session['user_id'], collection_id=collection_id)
+        raise error
+
+
+@app.post('/collections/{collection_id}/access/user')
 async def give_access_user_to_collection(request: GiveAccessUserToCollectionRequest, collection_id: int, session: dict = Depends(get_current_user)):
     key = hash_reconstruct(session['hash1'], session['hash2'])
     try:
@@ -340,7 +349,7 @@ async def give_access_user_to_collection(request: GiveAccessUserToCollectionRequ
             collection_id, session['user_id'], request.user_id, request.access_type_id, key)
         database.add_log('give_access_user_to_collection',
                          200, {'access_type_id': request.access_type_id}, user_id=session['user_id'], collection_id=collection_id)
-        username = database.get_username(session['user_id'])
+        username = database.get_username(request.user_id)
         if username:
             await create_policy_to_user(username,
                                         database.get_collections(request.user_id))
@@ -350,21 +359,7 @@ async def give_access_user_to_collection(request: GiveAccessUserToCollectionRequ
         raise error
 
 
-@app.post('/groups/create')  # safe+ logs+
-async def create_group(request: CreateGroupRequest, session: dict = Depends(get_current_user)):
-    try:
-        group_id = database.create_group(
-            session['user_id'], request.title, request.description)
-        database.add_log(
-            'create_group', 200, {'title': request.title, 'description': request.description}, user_id=session['user_id'], group_id=group_id)
-    except Exception as error:
-        database.add_log('create_group', 500, {'error': str(
-            error), 'title': request.title, 'description': request.description}, user_id=session['user_id'])
-        raise error
-
-
-# safe+ access- logs+
-@app.post('/collections/{collection_id}/give_access_group')
+@app.post('/collections/{collection_id}/access/group')
 async def give_access_group_to_collection(request: GiveAccessGroupToCollectionRequest, collection_id: int, session: dict = Depends(get_current_user)):
     key = hash_reconstruct(session['hash1'], session['hash2'])
     try:
@@ -378,6 +373,19 @@ async def give_access_group_to_collection(request: GiveAccessGroupToCollectionRe
     except Exception as error:
         database.add_log('give_access_group_to_collection',
                          500, {'error': str(error)}, user_id=session['user_id'], group_id=request.group_id, collection_id=collection_id)
+        raise error
+
+
+@app.post('/groups/create')  # safe+ logs+
+async def create_group(request: CreateGroupRequest, session: dict = Depends(get_current_user)):
+    try:
+        group_id = database.create_group(
+            session['user_id'], request.title, request.description)
+        database.add_log(
+            'create_group', 200, {'title': request.title, 'description': request.description}, user_id=session['user_id'], group_id=group_id)
+    except Exception as error:
+        database.add_log('create_group', 500, {'error': str(
+            error), 'title': request.title, 'description': request.description}, user_id=session['user_id'])
         raise error
 
 
@@ -439,16 +447,6 @@ async def get_other_users(session: dict = Depends(get_current_user)) -> list | N
     except Exception as error:
         database.add_log('get_other_users', 500, {
                          'error': str(error)}, user_id=session['user_id'])
-        raise error
-
-
-@app.get('/collections/{collection_id}/access')  # safe+
-async def get_access_to_collection(collection_id: int, session: dict = Depends(get_current_user)) -> list | None:
-    try:
-        return database.get_access_to_collection(collection_id, session['user_id'])
-    except Exception as error:
-        database.add_log('get_access_to_collection', 500, {'error': str(
-            error)}, user_id=session['user_id'], collection_id=collection_id)
         raise error
 
 
@@ -539,7 +537,7 @@ async def exit_group(group_id: int, session: dict = Depends(get_current_user)):
         raise error
 
 
-@app.post('/groups/{group_id}/change_role')  # safe+ logs+
+@app.patch('/groups/{group_id}/user/role')  # safe+ logs+
 async def change_role_in_group(group_id: int, user_id: int, role_id: int, session: dict = Depends(get_current_user)):
     try:
         database.change_role_in_group(
@@ -552,7 +550,7 @@ async def change_role_in_group(group_id: int, user_id: int, role_id: int, sessio
         raise error
 
 
-@app.get('/user_info')  # safe+
+@app.get('/user/info')  # safe+
 async def get_user_info(session: dict = Depends(get_current_user)) -> dict[str, int | str]:
     try:
         return database.get_user_info(session['user_id'])
@@ -562,7 +560,7 @@ async def get_user_info(session: dict = Depends(get_current_user)) -> dict[str, 
         raise error
 
 
-@app.post('/access/{access_id}/change_type')  # safe+ logs+
+@app.patch('/access/{access_id}/type')  # safe+ logs+
 async def change_access_type(access_id: int, access_type_id: int, session: dict = Depends(get_current_user)):
     try:
         database.change_access_type(
@@ -584,7 +582,7 @@ async def change_access_type(access_id: int, access_type_id: int, session: dict 
         raise error
 
 
-@app.post('/groups/{group_id}/change_info')  # safe+ logs+
+@app.patch('/groups/{group_id}/info')  # safe+ logs+
 async def change_group_info(request: ChangeGroupInfoRequest, group_id: int, session: dict = Depends(get_current_user)):
     try:
         database.change_group_info(
@@ -617,7 +615,7 @@ async def get_history_collection(collection_id: int, session: dict = Depends(get
         raise error
 
 
-@app.post('/collections/{collection_id}/change_info')  # safe+ logs+
+@app.patch('/collections/{collection_id}/info')  # safe+ logs+
 async def change_collection_info(collection_id: int, data: dict, session: dict = Depends(get_current_user)):
     access = [1]
     if database.get_type_access(collection_id, session['user_id']) in access:
@@ -715,7 +713,7 @@ async def search_collection(text: str, session: dict = Depends(get_current_user)
         raise error
 
 
-@app.post('/collections/{collection_id}/change_access_to_all')  # safe+ logs+
+@app.patch('/collections/{collection_id}/access_to_all')  # safe+ logs+
 async def change_access_to_all(collection_id: int, is_access: bool, session: dict = Depends(get_current_user)):
     if database.get_type_access(collection_id, session['user_id']) == 1:
         key = hash_reconstruct(session['hash1'], session['hash2'])

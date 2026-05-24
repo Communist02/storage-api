@@ -5,7 +5,7 @@ import httpx
 from config import config
 
 
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
 
 
 async def validate_token(token: str) -> dict | None:
