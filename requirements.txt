@@ -3,8 +3,7 @@ minio
 cryptography
 SQLAlchemy
 psycopg2-binary
-ldap3
-requests
 zipstream
 opensearch-py[async]
 httpx-aws-auth
+truststore
