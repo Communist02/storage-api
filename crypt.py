@@ -8,11 +8,9 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 import os
 
 
-
 def hash_division(hash: bytes) -> tuple[bytes, bytes]:
     part1 = secrets.token_bytes(len(hash))
     part2 = bytes(h ^ p for h, p in zip(hash, part1))
-
     return part1, part2
 
 

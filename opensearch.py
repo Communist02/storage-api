@@ -11,6 +11,7 @@ class OpenSearchManager:
         self.host = host
         self.port = port
         self.auth = auth
+        
 
     # Не работает
     async def create_index(self, index_name: str = config.opensearch_collections_index):

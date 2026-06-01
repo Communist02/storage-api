@@ -1,10 +1,12 @@
+import ssl
 import httpx
 import xml.etree.ElementTree as ET
+import truststore
 from config import config
 
 
 async def get_sts_token(token: str, endpoint: str, duration=2592000) -> dict | None:
-    async with httpx.AsyncClient(verify=not config.debug_mode) as client:
+    async with httpx.AsyncClient(verify=False if not config.debug_mode else truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)) as client:
         response = await client.post(
             f'{endpoint}/{f"?DurationSeconds={duration}" if duration != 0 else ""}',
             params={'Action': 'AssumeRoleWithWebIdentity',

@@ -13,9 +13,6 @@ from crypt import hash_reconstruct
 from config import config
 from opensearch import OpenSearchManager
 from validate import get_current_user
-import truststore
-
-truststore.inject_into_ssl()
 
 
 class CopyRequest(BaseModel):

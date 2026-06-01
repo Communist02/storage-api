@@ -1,8 +1,10 @@
 import base64
+import ssl
 from fastapi import Cookie, Depends, HTTPException, Query
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 import httpx
 from config import config
+import truststore
 
 
 security = HTTPBearer(auto_error=False)
@@ -13,7 +15,7 @@ async def validate_token(token: str) -> dict | None:
     Проверяет токен через сервис авторизации.
     Возвращает данные пользователя или None.
     """
-    async with httpx.AsyncClient(verify=not config.debug_mode) as client:
+    async with httpx.AsyncClient(verify=False if not config.debug_mode else truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)) as client:
         response = await client.get(
             f'{config.auth_api_url}/introspect',
             headers={'Authorization': f'Beaver {token}'},
@@ -23,7 +25,8 @@ async def validate_token(token: str) -> dict | None:
         if session['active'] == True:
             session['hash1'] = base64.urlsafe_b64decode(
                 session['hash1'].encode())
-            session['hash2'] = base64.urlsafe_b64decode(session['hash2'].encode())
+            session['hash2'] = base64.urlsafe_b64decode(
+                session['hash2'].encode())
             session['jwt_token'] = session['jwt']
             return session
 
