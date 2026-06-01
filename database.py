@@ -121,7 +121,7 @@ def insert_initial_user_roles(target, connection, **kw):
 class MainDatabase:
     def __init__(self):
         self.engine = create_engine(
-            f'postgresql+psycopg2://{config.db_user}:{config.db_password}@localhost/{config.db_name}',
+            f'postgresql+psycopg2://{config.db_user}:{config.db_password}@{config.db_host}/{config.db_name}',
             pool_pre_ping=True,
             pool_recycle=3600,
             pool_size=10,

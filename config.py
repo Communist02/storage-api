@@ -16,6 +16,7 @@ default_config = {
     'opensearch_port': 9200,
     'opensearch_collections_index': 'collections',
     'opensearch_files_index': 'collections-files',
+    'db_host': 'localhost',
     'db_name': 'main',
     'db_user': 'root',
     'db_password': 'root',
