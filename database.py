@@ -1,10 +1,12 @@
 from datetime import datetime
-from sqlalchemy import JSON, DateTime, VARCHAR, Column, LargeBinary, INT, ForeignKey, TEXT, Index, delete, desc, event, update, func
+from fastapi import HTTPException
+from sqlalchemy import JSON, DateTime, VARCHAR, Column, LargeBinary, INT, ForeignKey, TEXT, Index, delete, desc, event, exists, update, func
 from sqlalchemy.orm import DeclarativeBase, Session
 from sqlalchemy import create_engine, select, insert
 import secrets
 import crypt
 from config import config
+from sqlalchemy.exc import IntegrityError
 
 
 class Base(DeclarativeBase):
@@ -152,9 +154,18 @@ class MainDatabase:
     def create_group(self, user_id: int, title: str, description: str) -> int:
         with Session(self.engine) as session:
             group_private_key, group_public_key = crypt.generate_x25519_keypair()
-            query = insert(Group).values(
-                title=title, description=description, public_key=group_public_key).returning(Group.id)
-            group_id = session.execute(query).scalar_one()
+            try:
+                query = insert(Group).values(
+                    title=title, description=description, public_key=group_public_key).returning(Group.id)
+                group_id = session.execute(query).scalar_one()
+            except IntegrityError as error:
+                if "unique constraint" in str(error).lower() or "duplicate key" in str(error).lower():
+                    raise HTTPException(
+                        status_code=409,
+                        detail=f'The group title "{title}" already exists'
+                    )
+                else:
+                    raise error
             query = select(User.public_key).where(User.id == user_id)
             user_public_key = session.execute(query).scalar_one()
             encrypted_private_key = crypt.asym_encrypt_key(
@@ -409,9 +420,18 @@ class MainDatabase:
             encrypted_group_private_key = crypt.asym_encrypt_key(
                 group_private_key, user_public_key)
 
-            query = insert(GroupUser).values(group_id=group_id, user_id=new_user_id,
-                                             role_id=role_id, encrypted_private_key=encrypted_group_private_key)
-            session.execute(query)
+            try:
+                query = insert(GroupUser).values(group_id=group_id, user_id=new_user_id,
+                                                 role_id=role_id, encrypted_private_key=encrypted_group_private_key)
+                session.execute(query)
+            except IntegrityError as error:
+                if "unique constraint" in str(error).lower() or "duplicate key" in str(error).lower():
+                    raise HTTPException(
+                        status_code=409,
+                        detail=f'user_id="{new_user_id}" already exists'
+                    )
+                else:
+                    raise error
             session.commit()
 
     def delete_user_to_group(self, group_id: int, delete_user_id: int, user_id: int):
@@ -428,6 +448,11 @@ class MainDatabase:
                     (GroupUser.group_id == group_id)
                 )) | (GroupUser.user_id == user_id))
             )
+            session.execute(query)
+            query = update(Group).where(
+                (Group.id == group_id) &
+                (exists(select(1).where(GroupUser.group_id == group_id)))
+            ).values(title=f'{group_id} deleted at {datetime.now()}')
             session.execute(query)
             session.commit()
 
@@ -550,7 +575,8 @@ class MainDatabase:
                 (GroupUser.user_id == owner_user_id) &
                 (GroupUser.role_id == 1)
             ).values(role_id=2)
-            if session.execute(query).rowcount == 1: # type: ignore[attr-defined]
+            # type: ignore[attr-defined]
+            if session.execute(query).rowcount == 1:
                 query = update(GroupUser).where(
                     (GroupUser.group_id == group_id) &
                     (GroupUser.user_id == user_id)
@@ -660,16 +686,25 @@ class MainDatabase:
 
     def change_group_info(self, user_id: int, group_id: int, title: str, description: str) -> None:
         with Session(self.engine) as session:
-            query = update(Group).where(
-                (Group.id == group_id) &
-                (Group.id.in_(
-                    select(GroupUser.group_id).where(
-                        (GroupUser.user_id == user_id) &
-                        (GroupUser.role_id <= 2)
+            try:
+                query = update(Group).where(
+                    (Group.id == group_id) &
+                    (Group.id.in_(
+                        select(GroupUser.group_id).where(
+                            (GroupUser.user_id == user_id) &
+                            (GroupUser.role_id <= 2)
+                        )
+                    ))
+                ).values(title=title, description=description)
+                session.execute(query)
+            except IntegrityError as error:
+                if "unique constraint" in str(error).lower() or "duplicate key" in str(error).lower():
+                    raise HTTPException(
+                        status_code=409,
+                        detail=f'The group title "{title}" already exists'
                     )
-                ))
-            ).values(title=title, description=description)
-            session.execute(query)
+                else:
+                    raise error
             session.commit()
 
     def get_logs(self, user_id: int) -> list[dict]:
