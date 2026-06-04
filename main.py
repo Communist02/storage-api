@@ -370,14 +370,16 @@ async def give_access_group_to_collection(request: GiveAccessGroupToCollectionRe
 
 @app.post('/groups/create')  # safe+ logs+
 async def create_group(request: CreateGroupRequest, session: dict = Depends(get_current_user)):
+    title = request.title.strip()
+    description = request.description.strip()
     try:
         group_id = database.create_group(
-            session['user_id'], request.title, request.description)
+            session['user_id'], title, description)
         database.add_log(
-            'create_group', 200, {'title': request.title, 'description': request.description}, user_id=session['user_id'], group_id=group_id)
+            'create_group', 200, {'title': title, 'description': description}, user_id=session['user_id'], group_id=group_id)
     except Exception as error:
         database.add_log('create_group', 500, {'error': str(
-            error), 'title': request.title, 'description': request.description}, user_id=session['user_id'])
+            error), 'title': title, 'description': description}, user_id=session['user_id'])
         raise error
 
 
@@ -576,14 +578,16 @@ async def change_access_type(access_id: int, access_type_id: int, session: dict 
 
 @app.patch('/groups/{group_id}/info')  # safe+ logs+
 async def change_group_info(request: ChangeGroupInfoRequest, group_id: int, session: dict = Depends(get_current_user)):
+    title = request.title.strip()
+    description = request.description.strip()
     try:
         database.change_group_info(
-            session['user_id'], group_id, request.title, request.description)
-        database.add_log('change_group_info', 200, {'title': request.title, 'description': request.description},
+            session['user_id'], group_id, title, description)
+        database.add_log('change_group_info', 200, {'title': title, 'description': description},
                          user_id=session['user_id'], group_id=group_id)
     except Exception as error:
         database.add_log('change_group_info', 500, {'error': str(
-            error), 'title': request.title, 'description': request.description}, user_id=session['user_id'], group_id=group_id)
+            error), 'title': title, 'description': description}, user_id=session['user_id'], group_id=group_id)
         raise error
 
 

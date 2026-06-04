@@ -451,8 +451,8 @@ class MainDatabase:
             session.execute(query)
             query = update(Group).where(
                 (Group.id == group_id) &
-                (exists(select(1).where(GroupUser.group_id == group_id)))
-            ).values(title=f'{group_id} deleted at {datetime.now()}')
+                (~exists(select(1).where(GroupUser.group_id == group_id)))
+            ).values(title=func.left(Group.title, 200) + f' deleted at {datetime.now()}')
             session.execute(query)
             session.commit()
 
@@ -575,8 +575,7 @@ class MainDatabase:
                 (GroupUser.user_id == owner_user_id) &
                 (GroupUser.role_id == 1)
             ).values(role_id=2)
-            # type: ignore[attr-defined]
-            if session.execute(query).rowcount == 1:
+            if session.execute(query).rowcount == 1: # type: ignore[attr-defined]
                 query = update(GroupUser).where(
                     (GroupUser.group_id == group_id) &
                     (GroupUser.user_id == user_id)
