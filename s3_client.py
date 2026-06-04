@@ -1,4 +1,5 @@
 import io
+import ssl
 from typing import Iterable, cast
 from minio import Minio
 from minio.sse import SseCustomerKey
@@ -8,6 +9,8 @@ from fastapi import HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from urllib.parse import quote
 from minio.deleteobjects import DeleteObject
+import truststore
+import urllib3
 from config import config
 from get_token import get_sts_token
 import zipstream
@@ -18,8 +21,11 @@ class S3Client:
     def __init__(self, endpoint: str):
         self.endpoint = endpoint
         self.cert_check = not config.debug_mode
+        ssl_context = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        self.http_client = urllib3.PoolManager(
+            ssl_context=ssl_context) if self.cert_check else None
         self.admin_client = Minio(
-            self.endpoint, 'admin', 'password', secure=True, cert_check=self.cert_check)
+            self.endpoint, 'admin', 'password', secure=True, cert_check=self.cert_check, http_client=self.http_client)
 
     async def get_list_files(self, bucket_name: str, path: str, recursive: bool, jwt_token: str) -> list[dict]:
         auth = await get_sts_token(jwt_token, 'https://' + config.s3_url, 0)
@@ -32,7 +38,7 @@ class S3Client:
                 }
             )
         client = Minio(self.endpoint, auth['access_key'], auth['secret_key'],
-                       auth['session_token'], secure=True, cert_check=self.cert_check)
+                       auth['session_token'], secure=True, cert_check=self.cert_check, http_client=self.http_client)
 
         try:
             if path:
@@ -128,7 +134,7 @@ class S3Client:
                 }
             )
         client = Minio(self.endpoint, auth['access_key'], auth['secret_key'],
-                       auth['session_token'], secure=True, cert_check=self.cert_check)
+                       auth['session_token'], secure=True, cert_check=self.cert_check, http_client=self.http_client)
 
         try:
             buckets = await run_in_threadpool(client.list_buckets)
@@ -165,7 +171,7 @@ class S3Client:
                 }
             )
         client = Minio(self.endpoint, auth['access_key'], auth['secret_key'],
-                       auth['session_token'], secure=True, cert_check=self.cert_check)
+                       auth['session_token'], secure=True, cert_check=self.cert_check, http_client=self.http_client)
 
         try:
             objects_to_delete: list[DeleteObject] = []
@@ -180,7 +186,8 @@ class S3Client:
                         client.list_objects,
                         bucket_name, prefix=object_name + '/', recursive=True)
                     objects_to_delete.extend(
-                        [DeleteObject(obj.object_name) for obj in objects if obj.object_name]
+                        [DeleteObject(obj.object_name)
+                         for obj in objects if obj.object_name]
                     )
 
             if objects_to_delete:
@@ -222,7 +229,7 @@ class S3Client:
                 }
             )
         client = Minio(self.endpoint, auth['access_key'], auth['secret_key'],
-                       auth['session_token'], secure=True, cert_check=self.cert_check)
+                       auth['session_token'], secure=True, cert_check=self.cert_check, http_client=self.http_client)
 
         async def file_iterator(stream, chunk_size=1024 * 1024):
             while True:
@@ -250,7 +257,7 @@ class S3Client:
             'Content-Length': str(file_size),
             'Accept-Ranges': 'bytes',
         }
-        
+
         try:
             if range_header and file_size:
                 start_end = range_header.replace('bytes=', '').split('-')
@@ -311,7 +318,7 @@ class S3Client:
                 }
             )
         client = Minio(self.endpoint, auth['access_key'], auth['secret_key'],
-                       auth['session_token'], secure=True, cert_check=self.cert_check)
+                       auth['session_token'], secure=True, cert_check=self.cert_check, http_client=self.http_client)
 
         files_to_download = []
 
@@ -384,7 +391,7 @@ class S3Client:
                 }
             )
         client = Minio(self.endpoint, auth['access_key'], auth['secret_key'],
-                       auth['session_token'], secure=True, cert_check=self.cert_check)
+                       auth['session_token'], secure=True, cert_check=self.cert_check, http_client=self.http_client)
 
         for source in source_paths:
             if source.endswith('/'):  # папка
@@ -459,7 +466,7 @@ class S3Client:
                 }
             )
         client = Minio(self.endpoint, auth['access_key'], auth['secret_key'],
-                       auth['session_token'], secure=True, cert_check=self.cert_check)
+                       auth['session_token'], secure=True, cert_check=self.cert_check, http_client=self.http_client)
 
         object_name = path.strip('/')
         new_object_name = object_name[:-
@@ -542,8 +549,7 @@ class S3Client:
                 }
             )
         client = Minio(self.endpoint, auth['access_key'], auth['secret_key'],
-                       auth['session_token'], secure=True, cert_check=self.cert_check)
-        
+                       auth['session_token'], secure=True, cert_check=self.cert_check, http_client=self.http_client)
 
         if file.filename and file.size:
             object_name = path.strip('/') + '/' + file.filename.strip('/')
@@ -582,7 +588,7 @@ class S3Client:
                 }
             )
         client = Minio(self.endpoint, auth['access_key'], auth['secret_key'],
-                       auth['session_token'], secure=True, cert_check=self.cert_check)
+                       auth['session_token'], secure=True, cert_check=self.cert_check, http_client=self.http_client)
         try:
             await run_in_threadpool(
                 client.put_object,
@@ -615,7 +621,7 @@ class S3Client:
                 }
             )
         client = Minio(self.endpoint, auth['access_key'], auth['secret_key'],
-                       auth['session_token'], secure=True, cert_check=self.cert_check)
+                       auth['session_token'], secure=True, cert_check=self.cert_check, http_client=self.http_client)
 
         try:
             await run_in_threadpool(
@@ -653,7 +659,7 @@ class S3Client:
                 }
             )
         client = Minio(self.endpoint, auth['access_key'], auth['secret_key'],
-                       auth['session_token'], secure=True, cert_check=self.cert_check)
+                       auth['session_token'], secure=True, cert_check=self.cert_check, http_client=self.http_client)
         try:
             await run_in_threadpool(client.remove_bucket, bucket_name)
         except S3Error as error:
