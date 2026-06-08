@@ -61,7 +61,7 @@ class S3Client:
             for obj in objects:
                 if obj.object_name:
                     object_name = obj.object_name
-                    if not object_name.endswith('NODATA'):
+                    if not object_name.endswith('/'):
                         file = {
                             'name': obj.object_name[obj.object_name.rfind('/', 0, -1 if obj.is_dir else -2) + 1:],
                             'isDirectory': obj.is_dir,
@@ -337,7 +337,7 @@ class S3Client:
                     )
 
                     for obj in objects:
-                        if obj.object_name and not obj.object_name.endswith('/NODATA'):
+                        if obj.object_name and not obj.object_name.endswith('/'):
                             files_to_download.append(obj.object_name)
 
             # Создаём потоковый zip-архив
@@ -594,7 +594,7 @@ class S3Client:
             await run_in_threadpool(
                 client.put_object,
                 bucket_name=bucket_name,
-                object_name=f'{path.strip('/')}/{name}/NODATA',
+                object_name=f'{path.strip('/')}/{name.strip('/')}/',
                 data=io.BytesIO(b''),
                 length=0,
                 sse=encryption_key,
