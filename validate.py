@@ -50,11 +50,10 @@ async def get_current_user(
     else:
         token = None
 
-    # Проверяем формат (опционально)
-    if not token or len(token) < 32:
+    if not token:
         raise HTTPException(
             status_code=401,
-            detail="Invalid token format",
+            detail="Access token is required",
             headers={"WWW-Authenticate": "Bearer"},
         )
 

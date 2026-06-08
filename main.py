@@ -99,7 +99,8 @@ async def get_list_collections(session: dict = Depends(get_current_user), ids: s
 @app.get('/collections/{collection_id}/list/{path:path}')  # access+
 async def get_list_files(collection_id: int, path: str, recursive: bool = True, session: dict = Depends(get_current_user)) -> list | None:
     access = [1, 2, 3, 4]
-    if database.get_type_access(collection_id, session['user_id']) in access:
+    access_type = database.get_type_access(collection_id, session['user_id'])
+    if access_type in access:
         try:
             return await minio.get_list_files(database.get_collection_name(collection_id), path, recursive, session['jwt_token'])
         except HTTPException as error:
@@ -107,6 +108,8 @@ async def get_list_files(collection_id: int, path: str, recursive: bool = True, 
                              {'error': error.detail, 'path': path, 'recursive': recursive}, user_id=session['user_id'], collection_id=collection_id)
             raise error
     else:
+        database.add_log(
+            'get_list_files', 403, {'error': f'{access_type} not in {access}', 'path': path, 'recursive': recursive}, user_id=session['user_id'], collection_id=collection_id)
         raise HTTPException(
             status_code=403,
             detail='No access'
@@ -116,7 +119,8 @@ async def get_list_files(collection_id: int, path: str, recursive: bool = True, 
 @app.get('/collections/{collection_id}/files/{path:path}')  # access+
 async def get_file(collection_id: int, path: str, request: Request, preview: bool = False, session: dict = Depends(get_current_user)) -> StreamingResponse:
     access = [1, 2, 3]
-    if database.get_type_access(collection_id, session['user_id']) in access:
+    access_type = database.get_type_access(collection_id, session['user_id'])
+    if access_type in access:
         try:
             key = hash_reconstruct(session['hash1'], session['hash2'])
             collection_key = database.get_collection_key(
@@ -133,6 +137,8 @@ async def get_file(collection_id: int, path: str, request: Request, preview: boo
                              {'error': str(error), 'path': path, 'preview': preview}, user_id=session['user_id'], collection_id=collection_id)
             raise error
     else:
+        database.add_log(
+            'get_file', 403, {'error': f'{access_type} not in {access}', 'path': path, 'preview': preview}, user_id=session['user_id'], collection_id=collection_id)
         raise HTTPException(
             status_code=403,
             detail='No access'
@@ -142,7 +148,8 @@ async def get_file(collection_id: int, path: str, request: Request, preview: boo
 @app.get('/collections/{collection_id}/archive')  # access+
 async def get_files(collection_id: int, files: str, session: dict = Depends(get_current_user)) -> StreamingResponse:
     access = [1, 2, 3]
-    if database.get_type_access(collection_id, session['user_id']) in access:
+    access_type = database.get_type_access(collection_id, session['user_id'])
+    if access_type in access:
         try:
             key = hash_reconstruct(session['hash1'], session['hash2'])
             collection_key = database.get_collection_key(
@@ -153,6 +160,8 @@ async def get_files(collection_id: int, files: str, session: dict = Depends(get_
                 'error': str(error), 'files': files}, user_id=session['user_id'], collection_id=collection_id)
             raise error
     else:
+        database.add_log(
+            'get_files', 403, {'error': f'{access_type} not in {access}', 'files': files}, user_id=session['user_id'], collection_id=collection_id)
         raise HTTPException(
             status_code=403,
             detail='No access'
@@ -162,8 +171,7 @@ async def get_files(collection_id: int, files: str, session: dict = Depends(get_
 @app.delete('/collections/{collection_id}/files')  # access+
 async def delete_files(collection_id: int, files: str, session: dict = Depends(get_current_user)):
     access = [1, 2]
-    access_type = database.get_type_access(
-        collection_id, session['user_id'])
+    access_type = database.get_type_access(collection_id, session['user_id'])
     files_list = files.split('|')
     if access_type in access:
         try:
@@ -219,8 +227,7 @@ async def copy_files(request: CopyRequest, session: dict = Depends(get_current_u
 @app.post('/collections/{collection_id}/rename')  # access+
 async def rename_file(collection_id: int, request: RenameRequest, session: dict = Depends(get_current_user)):
     access = [1, 2]
-    access_type = database.get_type_access(
-        collection_id, session['user_id'])
+    access_type = database.get_type_access(collection_id, session['user_id'])
     if access_type in access:
         try:
             key = hash_reconstruct(session['hash1'], session['hash2'])
@@ -248,8 +255,7 @@ async def rename_file(collection_id: int, request: RenameRequest, session: dict 
 @app.post('/collections/{collection_id}/create_directory')  # access+
 async def create_directory(collection_id: int, request: NewFolderRequest, session: dict = Depends(get_current_user)):
     access = [1, 2, 4]
-    access_type = database.get_type_access(
-        collection_id, session['user_id'])
+    access_type = database.get_type_access(collection_id, session['user_id'])
     if access_type in access:
         try:
             key = hash_reconstruct(session['hash1'], session['hash2'])
@@ -272,23 +278,22 @@ async def create_directory(collection_id: int, request: NewFolderRequest, sessio
 
 
 @app.post('/collections/{collection_id}/upload')  # access+
-async def upload_file(file: UploadFile, collection_id: int, path: str = '/', session: dict = Depends(get_current_user)) -> str | None:
+async def upload_file(file: UploadFile, collection_id: int, path: str = '/', archive: bool = False, session: dict = Depends(get_current_user)) -> str | None:
     access = [1, 2, 4]
-    access_type = database.get_type_access(
-        collection_id, session['user_id'])
+    access_type = database.get_type_access(collection_id, session['user_id'])
     if access_type in access:
         try:
             key = hash_reconstruct(session['hash1'], session['hash2'])
             collection_key = database.get_collection_key(
                 collection_id, session['user_id'], key)
             collection_name = database.get_collection_name(collection_id)
-            await minio.upload_file(collection_name, file, path, SseCustomerKey(collection_key), session['jwt_token'], overwrite=access_type != 4)
+            await minio.upload_file(collection_name, file, path, SseCustomerKey(collection_key), session['jwt_token'], overwrite=access_type != 4, is_archive=archive)
             database.add_log(
                 'upload', 200, {'file_name': file.filename, 'path': path}, user_id=session['user_id'], collection_id=collection_id)
             await index.indexing_files(collection_id, collection_name, jwt_token=session['jwt_token'], encryption_key=collection_key, files=[path.strip('/') + ('/' + file.filename.strip('/')) if file.filename is not None else ''])
             return file.filename
         except Exception as error:
-            database.add_log('upload_file', 500, {
+            database.add_log('upload', 500, {
                 'error': str(error), 'path': path, 'file_name': file.filename}, user_id=session['user_id'], collection_id=collection_id)
             raise error
     else:
@@ -377,6 +382,8 @@ async def create_group(request: CreateGroupRequest, session: dict = Depends(get_
             session['user_id'], title, description)
         database.add_log(
             'create_group', 200, {'title': title, 'description': description}, user_id=session['user_id'], group_id=group_id)
+    except HTTPException as error:
+        raise error
     except Exception as error:
         database.add_log('create_group', 500, {'error': str(
             error), 'title': title, 'description': description}, user_id=session['user_id'])
@@ -395,6 +402,8 @@ async def add_user_to_group(request: AddUserToGroupRequest, group_id: int, sessi
         if username:
             await create_policy_to_user(username,
                                         database.get_collections(request.user_id))
+    except HTTPException as error:
+        raise error
     except Exception as error:
         database.add_log('add_user_to_group', 500, {'error': str(
             error), 'role_id': request.role_id, 'user_id': request.user_id}, user_id=session['user_id'], group_id=group_id)
@@ -585,6 +594,8 @@ async def change_group_info(request: ChangeGroupInfoRequest, group_id: int, sess
             session['user_id'], group_id, title, description)
         database.add_log('change_group_info', 200, {'title': title, 'description': description},
                          user_id=session['user_id'], group_id=group_id)
+    except HTTPException as error:
+        raise error
     except Exception as error:
         database.add_log('change_group_info', 500, {'error': str(
             error), 'title': title, 'description': description}, user_id=session['user_id'], group_id=group_id)

@@ -538,7 +538,7 @@ class S3Client:
         await self.delete_files(bucket_name, [path], jwt_token)
         return new_paths
 
-    async def upload_file(self, bucket_name: str, file: UploadFile, path: str, encryption_key: SseCustomerKey, jwt_token: str, overwrite=True):
+    async def upload_file(self, bucket_name: str, file: UploadFile, path: str, encryption_key: SseCustomerKey, jwt_token: str, overwrite=True, is_archive=False):
         auth = await get_sts_token(jwt_token, 'https://' + config.s3_url, 0)
         if auth is None:
             raise HTTPException(
@@ -575,6 +575,7 @@ class S3Client:
                 data=file.file,
                 length=file.size,
                 sse=encryption_key,
+                metadata={'X-Amz-Meta-Snowball-Auto-Extract': 'true'} if is_archive else None
             )
 
     async def new_folder(self, bucket_name: str, name: str, path: str, encryption_key: SseCustomerKey, jwt_token: str):

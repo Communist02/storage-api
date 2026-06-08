@@ -162,7 +162,7 @@ class MainDatabase:
                 if "unique constraint" in str(error).lower() or "duplicate key" in str(error).lower():
                     raise HTTPException(
                         status_code=409,
-                        detail=f'The group title "{title}" already exists'
+                        detail=f'Title "{title}" already exists'
                     )
                 else:
                     raise error
@@ -428,7 +428,7 @@ class MainDatabase:
                 if "unique constraint" in str(error).lower() or "duplicate key" in str(error).lower():
                     raise HTTPException(
                         status_code=409,
-                        detail=f'user_id="{new_user_id}" already exists'
+                        detail=f'The user is already in the group'
                     )
                 else:
                     raise error
@@ -452,7 +452,7 @@ class MainDatabase:
             query = update(Group).where(
                 (Group.id == group_id) &
                 (~exists(select(1).where(GroupUser.group_id == group_id)))
-            ).values(title=func.left(Group.title, 200) + f' deleted at {datetime.now()}')
+            ).values(title=func.left(Group.title, 200) + f' | deleted at {datetime.now()}')
             session.execute(query)
             session.commit()
 
@@ -700,7 +700,7 @@ class MainDatabase:
                 if "unique constraint" in str(error).lower() or "duplicate key" in str(error).lower():
                     raise HTTPException(
                         status_code=409,
-                        detail=f'The group title "{title}" already exists'
+                        detail=f'Title "{title}" already exists'
                     )
                 else:
                     raise error
