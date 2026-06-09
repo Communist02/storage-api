@@ -290,7 +290,10 @@ async def upload_file(file: UploadFile, collection_id: int, path: str = '/', arc
             await minio.upload_file(collection_name, file, path, SseCustomerKey(collection_key), session['jwt_token'], overwrite=access_type != 4, is_archive=archive)
             database.add_log(
                 'upload', 200, {'file_name': file.filename, 'path': path}, user_id=session['user_id'], collection_id=collection_id)
-            await index.indexing_files(collection_id, collection_name, jwt_token=session['jwt_token'], encryption_key=collection_key, files=[path.strip('/') + ('/' + file.filename.strip('/')) if file.filename is not None else ''])
+            if not archive:
+                await index.indexing_files(collection_id, collection_name, jwt_token=session['jwt_token'], encryption_key=collection_key, files=[path.strip('/') + ('/' + file.filename.strip('/')) if file.filename is not None else ''])
+            else:
+                await index.indexing_collection(collection_id, collection_name, jwt_token=session['jwt_token'], encryption_key=collection_key, path=path.strip('/') + '/')
             return file.filename
         except Exception as error:
             database.add_log('upload', 500, {

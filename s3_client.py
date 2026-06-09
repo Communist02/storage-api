@@ -575,7 +575,8 @@ class S3Client:
                 data=file.file,
                 length=file.size,
                 sse=encryption_key,
-                metadata={'X-Amz-Meta-Snowball-Auto-Extract': 'true'} if is_archive else None
+                metadata={'X-Amz-Meta-Snowball-Auto-Extract': 'true'} if is_archive else None,
+                part_size=file.size if is_archive and file.size and file.size > 5242880 and file.size < 5368709120 else 0
             )
 
     async def new_folder(self, bucket_name: str, name: str, path: str, encryption_key: SseCustomerKey, jwt_token: str):
