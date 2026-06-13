@@ -1,4 +1,5 @@
 import ssl
+from fastapi import HTTPException
 import httpx
 import xml.etree.ElementTree as ET
 import truststore
@@ -6,12 +7,21 @@ from config import config
 
 
 async def get_sts_token(token: str, endpoint: str, duration=2592000) -> dict | None:
-    async with httpx.AsyncClient(verify=False if not config.debug_mode else truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)) as client:
-        response = await client.post(
-            f'{endpoint}/{f"?DurationSeconds={duration}" if duration != 0 else ""}',
-            params={'Action': 'AssumeRoleWithWebIdentity',
-                    'WebIdentityToken': token, 'Version': '2011-06-15'},
-            timeout=5
+    try:
+        async with httpx.AsyncClient(verify=False if not config.debug_mode else truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)) as client:
+            response = await client.post(
+                f'{endpoint}/{f"?DurationSeconds={duration}" if duration != 0 else ""}',
+                params={'Action': 'AssumeRoleWithWebIdentity',
+                        'WebIdentityToken': token, 'Version': '2011-06-15'},
+                timeout=15
+            )
+    except httpx.TimeoutException as e:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                'error': 'Timeout',
+                'message': "Couldn't get the STS token"
+            }
         )
 
     if response.status_code == 200:

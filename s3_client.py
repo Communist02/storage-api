@@ -40,9 +40,10 @@ class S3Client:
         client = Minio(self.endpoint, auth['access_key'], auth['secret_key'],
                        auth['session_token'], secure=True, cert_check=self.cert_check, http_client=self.http_client)
 
+        path = path.strip('/')
         try:
             if path:
-                prefix = path.strip('/') + '/'
+                prefix = path + '/'
                 objects = await run_in_threadpool(
                     client.list_objects,
                     bucket_name,
@@ -575,7 +576,8 @@ class S3Client:
                 data=file.file,
                 length=file.size,
                 sse=encryption_key,
-                metadata={'X-Amz-Meta-Snowball-Auto-Extract': 'true'} if is_archive else None,
+                metadata={
+                    'X-Amz-Meta-Snowball-Auto-Extract': 'true'} if is_archive else None,
                 part_size=file.size if is_archive and file.size and file.size > 5242880 and file.size < 5368709120 else 0
             )
 

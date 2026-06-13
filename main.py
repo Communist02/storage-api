@@ -95,9 +95,9 @@ async def get_list_collections(session: dict = Depends(get_current_user), ids: s
         return database.get_specific_access_to_all_collections(session['user_id'], [int(i) for i in ids.split(',')])
     return database.get_collections(session['user_id'])
 
-
+@app.get('/collections/{collection_id}/files')
 @app.get('/collections/{collection_id}/list/{path:path}')  # access+
-async def get_list_files(collection_id: int, path: str, recursive: bool = True, session: dict = Depends(get_current_user)) -> list | None:
+async def get_list_files(collection_id: int, path: str = '', recursive: bool = True, session: dict = Depends(get_current_user)) -> list | None:
     access = [1, 2, 3, 4]
     access_type = database.get_type_access(collection_id, session['user_id'])
     if access_type in access:
