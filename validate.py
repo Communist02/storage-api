@@ -15,10 +15,17 @@ async def validate_token(token: str) -> dict | None:
     Проверяет токен через сервис авторизации.
     Возвращает данные пользователя или None.
     """
-    async with httpx.AsyncClient(verify=False if not config.debug_mode else truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)) as client:
+    context = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+
+    if config.client_cert and config.client_private_key:
+        context.load_cert_chain(certfile=config.client_cert, keyfile=config.client_private_key)
+    else:
+        print("Client certificate or private key not provided. Skipping client certificate authentication.")
+
+    async with httpx.AsyncClient(verify=False if not config.debug_mode else context) as client:
         response = await client.get(
             f'{config.auth_api_url}/introspect',
-            headers={'Authorization': f'Beaver {token}'},
+            headers={'Authorization': f'Bearer {token}'},
         )
     if response.status_code == 200:
         session = response.json()

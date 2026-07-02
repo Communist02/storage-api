@@ -684,3 +684,10 @@ class S3Client:
                     status_code=500,
                     detail=f"Failed remove bucket '{bucket_name}': {error.message}"
                 )
+            
+    async def get_status(self) -> dict:
+        try:
+            await run_in_threadpool(self.admin_client.list_buckets)
+            return {'status': 'active', 'detail': 'S3 service is active and reachable'}
+        except S3Error as error:
+            return {'status': 'failed', 'detail': f'Failed to get status: {error.message}, {error.code}'}

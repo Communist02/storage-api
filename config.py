@@ -21,7 +21,9 @@ default_config = {
     'db_user': 'root',
     'db_password': 'root',
     'opensearch_user': 'admin',
-    'opensearch_password': 'OTFiZDkwMGRiOWQw1!'
+    'opensearch_password': 'OTFiZDkwMGRiOWQw1!',
+    'client_cert_path': '',
+    'client_private_key': ''
 }
 
 

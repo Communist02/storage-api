@@ -758,3 +758,11 @@ class MainDatabase:
                 ).values(key=None)
             session.execute(query)
             session.commit()
+
+    def get_status(self) -> dict:
+        with Session(self.engine) as session:
+            try:
+                session.execute(select(1))
+                return {'status': 'active', 'detail': 'Database is active and reachable'}
+            except Exception as error:
+                return {'status': 'failed', 'detail': f'Failed to get status: {str(error)}'}

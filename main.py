@@ -84,8 +84,20 @@ app.add_middleware(
 )
 
 
-@app.get('user/session')
-async def check_session(session: dict = Depends(get_current_user)) -> dict[str, str | bool | int]:
+@app.get('/status')
+async def get_status() -> dict[str, str | int | bool | dict]:
+    status = {
+        'status': 'active',  # active, inactive, failed
+        'debug_mode: ': config.debug_mode,
+        's3': await minio.get_status(),
+        'opensearch': await opensearch.get_status(),
+        'database': database.get_status()
+    }
+    return status
+
+
+@app.get('/user/session')
+async def check_session(session: dict = Depends(get_current_user)) -> dict[str, bool | int]:
     return {'authenticated': True, 'user_id': session['user_id']}
 
 
@@ -95,9 +107,10 @@ async def get_list_collections(session: dict = Depends(get_current_user), ids: s
         return database.get_specific_access_to_all_collections(session['user_id'], [int(i) for i in ids.split(',')])
     return database.get_collections(session['user_id'])
 
+
 @app.get('/collections/{collection_id}/files')
 @app.get('/collections/{collection_id}/list/{path:path}')  # access+
-async def get_list_files(collection_id: int, path: str = '', recursive: bool = True, session: dict = Depends(get_current_user)) -> list | None:
+async def get_list_files(collection_id: int, path: str = '', recursive: bool = True, session: dict = Depends(get_current_user)) -> list[dict] | None:
     access = [1, 2, 3, 4]
     access_type = database.get_type_access(collection_id, session['user_id'])
     if access_type in access:
@@ -447,7 +460,7 @@ async def remove_collection(collection_id: int, session: dict = Depends(get_curr
 
 
 @app.get('/users')  # safe+
-async def get_other_users(session: dict = Depends(get_current_user)) -> list | None:
+async def get_other_users(session: dict = Depends(get_current_user)) -> list[dict] | None:
     try:
         return database.get_other_users(session['user_id'])
     except Exception as error:
@@ -457,7 +470,7 @@ async def get_other_users(session: dict = Depends(get_current_user)) -> list | N
 
 
 @app.delete('/access/{access_id}')  # safe+ logs+
-async def delete_access_to_collection(access_id: int, session: dict = Depends(get_current_user)) -> list | None:
+async def delete_access_to_collection(access_id: int, session: dict = Depends(get_current_user)):
     try:
         access_info = database.get_access_info(access_id)
         database.delete_access_to_collection(access_id, session['user_id'])
@@ -479,7 +492,7 @@ async def delete_access_to_collection(access_id: int, session: dict = Depends(ge
 
 
 @app.delete('/groups/{group_id}/users/{user_id}')  # safe+ logs+
-async def delete_user_to_group(group_id: int, user_id: int, session: dict = Depends(get_current_user)) -> list | None:
+async def delete_user_to_group(group_id: int, user_id: int, session: dict = Depends(get_current_user)):
     try:
         database.delete_user_to_group(
             group_id, user_id, session['user_id'])
@@ -495,7 +508,7 @@ async def delete_user_to_group(group_id: int, user_id: int, session: dict = Depe
 
 
 @app.get('/groups/{group_id}/users')  # safe+
-async def get_group_users(group_id: int, session: dict = Depends(get_current_user)) -> list | None:
+async def get_group_users(group_id: int, session: dict = Depends(get_current_user)) -> list[dict] | None:
     try:
         return database.get_group_users(group_id, session['user_id'])
     except Exception as error:
@@ -505,7 +518,7 @@ async def get_group_users(group_id: int, session: dict = Depends(get_current_use
 
 
 @app.get('/access/types')  # safe+
-async def get_access_types(session: dict = Depends(get_current_user)) -> list | None:
+async def get_access_types(session: dict = Depends(get_current_user)) -> list[dict] | None:
     try:
         return database.get_access_types()
     except Exception as error:
@@ -606,7 +619,7 @@ async def change_group_info(request: ChangeGroupInfoRequest, group_id: int, sess
 
 
 @app.get('/logs')  # safe+
-async def get_logs(session: dict = Depends(get_current_user)) -> list:
+async def get_logs(session: dict = Depends(get_current_user)) -> list[dict]:
     try:
         return database.get_logs(session['user_id'])
     except Exception as error:
@@ -616,7 +629,7 @@ async def get_logs(session: dict = Depends(get_current_user)) -> list:
 
 
 @app.get('/collections/{collection_id}/history')  # safe+
-async def get_history_collection(collection_id: int, session: dict = Depends(get_current_user)) -> list:
+async def get_history_collection(collection_id: int, session: dict = Depends(get_current_user)) -> list[dict]:
     try:
         return database.get_history_collection(session['user_id'], collection_id)
     except Exception as error:
