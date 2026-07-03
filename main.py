@@ -12,7 +12,7 @@ from database import MainDatabase
 from crypt import hash_reconstruct
 from config import config
 from opensearch import OpenSearchManager
-from validate import get_current_user
+from validate import get_auth_status, get_current_user
 
 
 class CopyRequest(BaseModel):
@@ -85,15 +85,16 @@ app.add_middleware(
 
 
 @app.get('/status')
-async def get_status() -> dict[str, str | int | bool | dict]:
+async def get_status() -> dict[str, str | int | bool | list[dict]]:
     status = {
         'status': 'active',  # active, inactive, failed
         'debug_mode: ': config.debug_mode,
-        'agents': {
-            's3': await minio.get_status(),
-            'opensearch': await opensearch.get_status(),
-            'database': database.get_status()
-        }
+        'agents': [
+            await minio.get_status(),
+            await opensearch.get_status(),
+            database.get_status(),
+            get_auth_status()
+        ]
     }
     return status
 

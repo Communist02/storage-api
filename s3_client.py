@@ -688,6 +688,6 @@ class S3Client:
     async def get_status(self) -> dict:
         try:
             await run_in_threadpool(self.admin_client.list_buckets)
-            return {'status': 'active', 'host': config.s3_url.split(':')[0], 'port': config.s3_url.split(':')[1], 'detail': 'S3 service is active and reachable'}
+            return {'status': 'active', 'host': config.s3_url.split(':')[0], 'port': config.s3_url.split(':')[-1], 'detail': 'S3 service is active and reachable'}
         except S3Error as error:
-            return {'status': 'failed', 'host': config.s3_url.split(':')[0], 'port': config.s3_url.split(':')[1], 'detail': f'Failed to get status: {error.message} | {error.code}'}
+            return {'status': 'failed', 'host': config.s3_url.split(':')[0], 'port': config.s3_url.split(':')[-1], 'detail': f'Failed to get status: {error.message} | {error.code}'}

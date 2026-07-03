@@ -36,6 +36,20 @@ async def validate_token(token: str) -> dict | None:
                 session['hash2'].encode())
             session['jwt_token'] = session['jwt']
             return session
+        
+
+async def get_auth_status() -> dict:
+    context = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+
+    async with httpx.AsyncClient(verify=False if not config.debug_mode else context) as client:
+        response = await client.get(
+            f'{config.auth_api_url}/status'
+        )
+        status = {'host': config.db_host.replace('http://', '').replace('https://', '').split(':')[0], 'type': 'api', 'port': config.db_host.split(':')[-1]}
+        if response.status_code == 200:
+            return response.json() | status
+        else:
+            return {'status': 'failed'} | status
 
 
 async def get_current_user(

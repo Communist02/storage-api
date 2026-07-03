@@ -761,8 +761,9 @@ class MainDatabase:
 
     def get_status(self) -> dict:
         with Session(self.engine) as session:
+            status = {'host': config.db_host, 'type': 'database', 'port': 5432}
             try:
                 session.execute(select(1))
-                return {'status': 'active', 'host': config.db_host, 'port': 5432, 'detail': 'Database is active and reachable'}
+                return status | {'status': 'active', 'detail': 'Database is active and reachable'}
             except Exception as error:
-                return {'status': 'failed', 'host': config.db_host, 'port': 5432, 'detail': f'Failed to get status: {str(error)}'}
+                return status | {'status': 'failed', 'detail': f'Failed to get status: {str(error)}'}
