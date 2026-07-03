@@ -89,9 +89,11 @@ async def get_status() -> dict[str, str | int | bool | dict]:
     status = {
         'status': 'active',  # active, inactive, failed
         'debug_mode: ': config.debug_mode,
-        's3': await minio.get_status(),
-        'opensearch': await opensearch.get_status(),
-        'database': database.get_status()
+        'agents': {
+            's3': await minio.get_status(),
+            'opensearch': await opensearch.get_status(),
+            'database': database.get_status()
+        }
     }
     return status
 

@@ -11,9 +11,9 @@ class OpenSearchManager:
         self.host = host
         self.port = port
         self.auth = auth
-        
 
     # Не работает
+
     async def create_index(self, index_name: str = config.opensearch_collections_index):
         async with AsyncOpenSearch(
             hosts=[{'host': self.host, 'port': self.port}],
@@ -215,7 +215,7 @@ class OpenSearchManager:
             )
             files = response['hits']['hits']
         return {'collections': collections, 'files': files}
-    
+
     async def get_status(self) -> dict:
         try:
             async with AsyncOpenSearch(
@@ -228,6 +228,6 @@ class OpenSearchManager:
                 ssl_show_warn=not config.debug_mode,
             ) as client:
                 client.info()
-            return {'status': 'active', 'detail': 'OpenSearch service is active and reachable'}
+            return {'status': 'active', 'host': self.host, 'port': self.port, 'detail': 'OpenSearch service is active and reachable'}
         except Exception as e:
-            return {'status': 'failed', 'detail': f'Failed to get status: {str(e)}'}
+            return {'status': 'failed', 'host': self.host, 'port': self.port, 'detail': f'Failed to get status: {str(e)}'}
