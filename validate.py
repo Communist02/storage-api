@@ -18,7 +18,8 @@ async def validate_token(token: str) -> dict | None:
     context = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
 
     if config.client_cert and config.client_private_key:
-        context.load_cert_chain(certfile=config.client_cert, keyfile=config.client_private_key)
+        context.load_cert_chain(
+            certfile=config.client_cert, keyfile=config.client_private_key)
     else:
         print("Client certificate or private key not provided. Skipping client certificate authentication.")
 
@@ -36,7 +37,7 @@ async def validate_token(token: str) -> dict | None:
                 session['hash2'].encode())
             session['jwt_token'] = session['jwt']
             return session
-        
+
 
 async def get_auth_status() -> dict:
     context = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
@@ -45,7 +46,8 @@ async def get_auth_status() -> dict:
         response = await client.get(
             f'{config.auth_api_url}/status'
         )
-        status = {'host': config.db_host.replace('http://', '').replace('https://', '').split(':')[0], 'type': 'api', 'port': config.db_host.split(':')[-1]}
+        status = {'host': config.auth_api_url.replace('http://', '').replace(
+            'https://', '').split(':')[0], 'type': 'api', 'port': config.auth_api_url.split(':')[-1]}
         if response.status_code == 200:
             return response.json() | status
         else:

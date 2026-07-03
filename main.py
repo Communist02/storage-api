@@ -93,7 +93,7 @@ async def get_status() -> dict[str, str | int | bool | list[dict]]:
             await minio.get_status(),
             await opensearch.get_status(),
             database.get_status(),
-            get_auth_status()
+            await get_auth_status()
         ]
     }
     return status
