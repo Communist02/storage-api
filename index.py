@@ -56,9 +56,9 @@ async def delete_index(collection_id: int, collection_name: str, files: list[str
         pass
 
 
-async def get_status():
+async def get_status() -> dict[str, str | int]:
     status = {'name': 'index-api', 'host': config.index_api_url.replace('http://', '').replace(
-        'https://', '').split(':')[0], 'type': 'api', 'port': config.index_api_url.split(':')[-1]}
+        'https://', '').split(':')[0], 'type': 'api', 'port': int(config.index_api_url.split(':')[-1])}
     try:
         async with httpx.AsyncClient(verify=False if not config.debug_mode else truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)) as client:
             response = await client.get(

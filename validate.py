@@ -47,7 +47,7 @@ async def get_auth_status() -> dict:
             f'{config.auth_api_url}/status'
         )
         status = {'host': config.auth_api_url.replace('http://', '').replace(
-            'https://', '').split(':')[0], 'type': 'api', 'port': config.auth_api_url.split(':')[-1]}
+            'https://', '').split(':')[0], 'type': 'api', 'port': int(config.auth_api_url.split(':')[-1])}
         if response.status_code == 200:
             return response.json() | status
         else:

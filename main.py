@@ -86,16 +86,17 @@ app.add_middleware(
 
 
 @app.get('/status')
-async def get_status() -> dict[str, str | int | bool | tuple[dict]]:
+async def get_status() -> dict[str, str | int | bool | list[dict]]:
     status = {
         'status': 'active',  # active, inactive, failed
         'debug_mode: ': config.debug_mode,
-        'agents': await asyncio.gather(
+        'agents': list(await asyncio.gather(
             minio.get_status(),
             opensearch.get_status(),
             asyncio.to_thread(database.get_status),
-            get_auth_status()
-        )
+            get_auth_status(),
+            index.get_status()
+        ))
     }
     return status
 
