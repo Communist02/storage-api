@@ -217,6 +217,7 @@ class OpenSearchManager:
         return {'collections': collections, 'files': files}
 
     async def get_status(self) -> dict:
+        status = {'name': 'opensearch', 'host': self.host, 'port': self.port}
         try:
             async with AsyncOpenSearch(
                 hosts=[{'host': self.host, 'port': self.port}],
@@ -227,7 +228,7 @@ class OpenSearchManager:
                 ssl_assert_hostname=not config.debug_mode,
                 ssl_show_warn=not config.debug_mode,
             ) as client:
-                client.info()
-            return {'status': 'active', 'host': self.host, 'port': self.port, 'detail': 'OpenSearch service is active and reachable'}
+                await client.info()
+            return status | {'status': 'active','detail': 'OpenSearch service is active and reachable'}
         except Exception as e:
-            return {'status': 'failed', 'host': self.host, 'port': self.port, 'detail': f'Failed to get status: {str(e)}'}
+            return status | {'status': 'failed', 'detail': f'Failed to get status: {str(e)}'}

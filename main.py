@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 import httpx
 from minio.sse import SseCustomerKey
@@ -85,16 +86,16 @@ app.add_middleware(
 
 
 @app.get('/status')
-async def get_status() -> dict[str, str | int | bool | list[dict]]:
+async def get_status() -> dict[str, str | int | bool | tuple[dict]]:
     status = {
         'status': 'active',  # active, inactive, failed
         'debug_mode: ': config.debug_mode,
-        'agents': [
-            await minio.get_status(),
-            await opensearch.get_status(),
-            database.get_status(),
-            await get_auth_status()
-        ]
+        'agents': await asyncio.gather(
+            minio.get_status(),
+            opensearch.get_status(),
+            asyncio.to_thread(database.get_status),
+            get_auth_status()
+        )
     }
     return status
 

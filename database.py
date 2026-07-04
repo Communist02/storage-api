@@ -761,7 +761,7 @@ class MainDatabase:
 
     def get_status(self) -> dict:
         with Session(self.engine) as session:
-            status = {'host': config.db_host, 'type': 'database', 'port': 5432}
+            status = {'name': 'postgresql', 'host': config.db_host, 'type': 'database', 'port': 5432}
             try:
                 session.execute(select(1))
                 return status | {'status': 'active', 'detail': 'Database is active and reachable'}
