@@ -217,7 +217,7 @@ class OpenSearchManager:
         return {'collections': collections, 'files': files}
 
     async def get_status(self) -> dict:
-        status = {'name': 'opensearch', 'host': self.host, 'port': self.port}
+        status = {'type': 'database', 'name': 'opensearch', 'host': self.host, 'port': self.port}
         try:
             async with AsyncOpenSearch(
                 hosts=[{'host': self.host, 'port': self.port}],

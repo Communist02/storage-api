@@ -89,6 +89,7 @@ app.add_middleware(
 async def get_status() -> dict[str, str | int | bool | list[dict]]:
     status = {
         'status': 'active',  # active, inactive, failed
+        'type': 'api',
         'debug_mode: ': config.debug_mode,
         'agents': list(await asyncio.gather(
             minio.get_status(),

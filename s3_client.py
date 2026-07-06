@@ -686,7 +686,7 @@ class S3Client:
                 )
 
     async def get_status(self) -> dict:
-        status = {'name': 'minio', 'host': config.s3_url.split(
+        status = {'type': 'storage', 'name': 'minio', 'host': config.s3_url.split(
             ':')[0], 'port': config.s3_url.split(':')[-1]}
         try:
             await run_in_threadpool(self.admin_client.list_buckets)

@@ -17,9 +17,9 @@ async def validate_token(token: str) -> dict | None:
     """
     context = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
 
-    if config.client_cert and config.client_private_key:
+    if config.client_cert_path and config.client_private_key_path:
         context.load_cert_chain(
-            certfile=config.client_cert, keyfile=config.client_private_key)
+            certfile=config.client_cert_path, keyfile=config.client_private_key_path)
     else:
         print("Client certificate or private key not provided. Skipping client certificate authentication.")
 

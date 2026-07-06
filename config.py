@@ -23,7 +23,7 @@ default_config = {
     'opensearch_user': 'admin',
     'opensearch_password': 'OTFiZDkwMGRiOWQw1!',
     'client_cert_path': '',
-    'client_private_key': ''
+    'client_private_key_path': ''
 }
 
 
