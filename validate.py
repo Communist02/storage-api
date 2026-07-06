@@ -23,7 +23,7 @@ async def validate_token(token: str) -> dict | None:
     else:
         print("Client certificate or private key not provided. Skipping client certificate authentication.")
 
-    async with httpx.AsyncClient(verify=False if not config.debug_mode else context) as client:
+    async with httpx.AsyncClient(verify=False if config.debug_mode else context) as client:
         response = await client.get(
             f'{config.auth_api_url}/introspect',
             headers={'Authorization': f'Bearer {token}'},
@@ -42,7 +42,7 @@ async def validate_token(token: str) -> dict | None:
 async def get_auth_status() -> dict:
     context = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
 
-    async with httpx.AsyncClient(verify=False if not config.debug_mode else context) as client:
+    async with httpx.AsyncClient(verify=False if config.debug_mode else context) as client:
         response = await client.get(
             f'{config.auth_api_url}/status'
         )

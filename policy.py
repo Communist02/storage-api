@@ -89,7 +89,7 @@ async def create_policy_to_user(username: str, collections: list) -> str:
         service='s3'
     )
     ctx = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-    async with httpx.AsyncClient(verify=False if not config.debug_mode else ctx) as client:
+    async with httpx.AsyncClient(verify=False if config.debug_mode else ctx) as client:
         response = await client.put(
             f'https://{config.s3_url}/minio/admin/v3/add-canned-policy',
             params={'name': username},
@@ -170,7 +170,7 @@ async def create_policy_to_all(collections: list) -> str:
 
     ctx = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
     try:
-        async with httpx.AsyncClient(verify=False if not config.debug_mode else ctx) as client:
+        async with httpx.AsyncClient(verify=False if config.debug_mode else ctx) as client:
             response = await client.put(
                 f'https://{config.s3_url}/minio/admin/v3/add-canned-policy',
                 params={'name': 'all/system'},
