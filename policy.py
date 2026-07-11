@@ -180,15 +180,20 @@ async def create_policy_to_all(collections: list) -> str:
                 timeout=5,
             )
     except httpcore.ConnectError as error:
-        print('Не удалось подключится к хранилищу s3')
+        print('Failed to connect to S3 storage')
         raise error
     if response.status_code != 200:
-        print('Ошибка создания политики:', response.status_code)
+        print('S3 storage policy creation error:', response.status_code)
         print(response.text)
 
     opensearch_policy['index_permissions'][0]['dls'] = str(
-        opensearch_policy['index_permissions'][0]['dls']).replace("'", '"')
+        opensearch_policy['index_permissions'][0]['dls']
+    ).replace("'", '"')
     opensearch = OpenSearchManager()
-    await opensearch.create_policy_to_user('all/system', opensearch_policy)
+    try:
+        response = await opensearch.create_policy_to_user('all/system', opensearch_policy)
+    except ConnectionRefusedError as error:
+        print('Failed to connect to OpenSearch')
+        raise error
 
     return json.dumps(policy)

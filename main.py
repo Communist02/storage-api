@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 import httpx
 from minio.sse import SseCustomerKey
 from fastapi import Depends, FastAPI, HTTPException, Request, UploadFile
-from fastapi.responses import StreamingResponse
+from fastapi.responses import RedirectResponse, StreamingResponse
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 import index
@@ -83,6 +83,11 @@ app.add_middleware(
     allow_credentials=True,
     allow_headers=["Content-Type", "Authorization"]
 )
+
+
+@app.get("/", include_in_schema=False)
+async def redirect_to_docs() -> RedirectResponse:
+    return RedirectResponse(url="/docs")
 
 
 @app.get('/status')

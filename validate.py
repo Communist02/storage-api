@@ -23,7 +23,7 @@ async def validate_token(token: str) -> dict | None:
     else:
         print("Client certificate or private key not provided. Skipping client certificate authentication.")
 
-    async with httpx.AsyncClient(verify=False if config.debug_mode else context) as client:
+    async with httpx.AsyncClient(verify=context) as client:
         response = await client.get(
             f'{config.auth_api_url}/introspect',
             headers={'Authorization': f'Bearer {token}'},
@@ -41,17 +41,30 @@ async def validate_token(token: str) -> dict | None:
 
 async def get_auth_status() -> dict:
     context = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    status = {'host': config.auth_api_url.replace('http://', '').replace('https://', '').split(
+        ':')[0], 'type': 'api', 'port': int(config.auth_api_url.split(':')[-1])}
 
-    async with httpx.AsyncClient(verify=False if config.debug_mode else context) as client:
-        response = await client.get(
-            f'{config.auth_api_url}/status'
-        )
-        status = {'host': config.auth_api_url.replace('http://', '').replace(
-            'https://', '').split(':')[0], 'type': 'api', 'port': int(config.auth_api_url.split(':')[-1])}
-        if response.status_code == 200:
-            return response.json() | status
-        else:
-            return {'status': 'failed'} | status
+    if config.client_cert_path and config.client_private_key_path:
+        context.load_cert_chain(
+            certfile=config.client_cert_path, keyfile=config.client_private_key_path)
+    else:
+        message = f"Client certificate or private key not provided"
+        print(message)
+        status['detail'] = message
+
+    try:
+        async with httpx.AsyncClient(verify=context) as client:
+            response = await client.get(
+                f'{config.auth_api_url}/status'
+            )
+
+            if response.status_code == 200:
+                return response.json() | status
+            else:
+                return {'status': 'failed'} | status
+    except Exception as error:
+        print(f"Error while checking auth service status: {error}")
+        return {'status': 'failed', 'detail': status.get('detail', str(error))} | status
 
 
 async def get_current_user(
