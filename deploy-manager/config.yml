@@ -1,0 +1,10 @@
+name: storage-api
+path: /root/storage-api
+file: storage-api.conf
+run:
+  git:
+    url: http://git.eco.dvo.ru:3000/mazur/storage-api.git
+  fast-api:
+    port: 8001
+    app: main:app
+systemd: storage-api
