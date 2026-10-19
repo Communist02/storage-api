@@ -1,11 +1,14 @@
 import asyncio
 from contextlib import asynccontextmanager
+from fastapi.templating import Jinja2Templates
 import httpx
 from minio.sse import SseCustomerKey
 from fastapi import Depends, FastAPI, HTTPException, Request, UploadFile
-from fastapi.responses import RedirectResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.exc import OperationalError
+from checklist import get_checklist
 import index
 from s3_client import S3Client
 from policy import create_policy_to_all, create_policy_to_user
@@ -59,7 +62,7 @@ class ChangeGroupInfoRequest(BaseModel):
 
 database = MainDatabase()
 opensearch = OpenSearchManager()
-minio = S3Client(config.s3_url)
+s3 = S3Client(config.s3_url)
 
 
 @asynccontextmanager
@@ -67,8 +70,13 @@ async def lifespan(app: FastAPI):
     # Инициализация при запуске
     try:
         await create_policy_to_all(database.get_absolute_access_to_all_collections())
-    except httpx.ConnectError:
-        print('Не удалось подключится к S3 хранилищу и/или Opensearch')
+    except httpx.ConnectError as error:
+        print('Не удалось подключиться к S3 хранилищу и/или Opensearch')
+        print(error)
+
+    except OperationalError as error:
+        print('Не удалось подключиться к базе данных')
+        print(error)
     # await web_sessions.initialize()
     yield
     # Завершение при остановке
@@ -82,6 +90,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_headers=["Content-Type", "Authorization"]
 )
+templates = Jinja2Templates(directory="templates")
 
 
 @app.get("/", include_in_schema=False)
@@ -89,19 +98,32 @@ async def redirect_to_docs() -> RedirectResponse:
     return RedirectResponse(url="/docs")
 
 
+@app.get("/checklist", response_class=HTMLResponse)
+async def checklist(request: Request):
+    return templates.TemplateResponse(
+        request,
+        "checklist.html",
+        {"request": request, "status": await get_checklist()}
+    )
+
+
 @app.get('/status')
 async def get_status() -> dict[str, str | int | bool | list[dict]]:
     status = {
         'status': 'active',  # active, inactive, failed
         'type': 'api',
-        'debug_mode: ': config.debug_mode,
         'agents': list(await asyncio.gather(
-            minio.get_status(),
+            s3.get_status(),
             opensearch.get_status(),
             asyncio.to_thread(database.get_status),
             get_auth_status(),
             index.get_status()
-        ))
+        )),
+        'urls': {
+            'Документация': '/docs',
+            'Чек-лист': '/checklist',
+            'Репозиторий': 'http://git.eco.dvo.ru:3000/mazur/storage-api'
+        }
     }
     return status
 
@@ -125,7 +147,7 @@ async def get_list_files(collection_id: int, path: str = '', recursive: bool = T
     access_type = database.get_type_access(collection_id, session['user_id'])
     if access_type in access:
         try:
-            return await minio.get_list_files(database.get_collection_name(collection_id), path, recursive, session['jwt_tokens']['minio'])
+            return await s3.get_list_files(database.get_collection_name(collection_id), path, recursive, session['jwt_tokens']['minio'])
         except HTTPException as error:
             database.add_log('get_list_files', error.status_code,
                              {'error': error.detail, 'path': path, 'recursive': recursive}, user_id=session['user_id'], collection_id=collection_id)
@@ -150,7 +172,7 @@ async def get_file(collection_id: int, path: str, request: Request, preview: boo
                 collection_id, session['user_id'], key)
             path = path.strip('/')
             range_header = request.headers.get('Range')
-            return await minio.download_file(database.get_collection_name(collection_id), path, preview, SseCustomerKey(collection_key), session['jwt_tokens']['minio'], range_header=range_header)
+            return await s3.download_file(database.get_collection_name(collection_id), path, preview, SseCustomerKey(collection_key), session['jwt_tokens']['minio'], range_header=range_header)
         except HTTPException as error:
             database.add_log('get_file', error.status_code,
                              {'error': error.detail, 'path': path, 'preview': preview}, user_id=session['user_id'], collection_id=collection_id)
@@ -177,7 +199,7 @@ async def get_files(collection_id: int, files: str, session: dict = Depends(get_
             key = session['user_key']
             collection_key = database.get_collection_key(
                 collection_id, session['user_id'], key)
-            return await minio.download_files(database.get_collection_name(collection_id), files.split('|'), SseCustomerKey(collection_key), session['jwt_tokens']['minio'])
+            return await s3.download_files(database.get_collection_name(collection_id), files.split('|'), SseCustomerKey(collection_key), session['jwt_tokens']['minio'])
         except Exception as error:
             database.add_log('get_files', 500, {
                 'error': str(error), 'files': files}, user_id=session['user_id'], collection_id=collection_id)
@@ -199,7 +221,7 @@ async def delete_files(collection_id: int, files: str, session: dict = Depends(g
     if access_type in access:
         try:
             collection_name = database.get_collection_name(collection_id)
-            await minio.delete_files(collection_name, files_list, session['jwt_tokens']['minio'])
+            await s3.delete_files(collection_name, files_list, session['jwt_tokens']['minio'])
             database.add_log(
                 'delete_files', 200, {'files': files_list}, user_id=session['user_id'], collection_id=collection_id)
             await index.delete_index(collection_id, collection_name, files_list)
@@ -229,7 +251,7 @@ async def copy_files(request: CopyRequest, session: dict = Depends(get_current_u
                 request.destination_collection_id, session['user_id'], key)
             collection_name = database.get_collection_name(
                 request.destination_collection_id)
-            await minio.copy_files(database.get_collection_name(request.source_collection_id), request.source_paths, collection_name, request.destination_path, SseCustomerKey(source_collection_key), SseCustomerKey(destination_collection_key), session['jwt_tokens']['minio'])
+            await s3.copy_files(database.get_collection_name(request.source_collection_id), request.source_paths, collection_name, request.destination_path, SseCustomerKey(source_collection_key), SseCustomerKey(destination_collection_key), session['jwt_tokens']['minio'])
             database.add_log('copy_files', 200, {'source_collection_id': request.source_collection_id, 'source_paths': request.source_paths,
                                                  'destination_path': request.destination_path}, user_id=session['user_id'], collection_id=request.destination_collection_id)
             await index.create_index(request.destination_collection_id, collection_name, jwt_token=session['jwt_tokens']['minio'], encryption_key=database.get_collection_key(request.destination_collection_id, session['user_id'], key), path=request.destination_path)
@@ -257,7 +279,7 @@ async def rename_file(collection_id: int, request: RenameRequest, session: dict 
             collection_key = database.get_collection_key(
                 collection_id, session['user_id'], key)
             collection_name = database.get_collection_name(collection_id)
-            new_paths = await minio.rename_file(collection_name, request.path, request.new_name, SseCustomerKey(collection_key), session['jwt_tokens']['minio'])
+            new_paths = await s3.rename_file(collection_name, request.path, request.new_name, SseCustomerKey(collection_key), session['jwt_tokens']['minio'])
             database.add_log(
                 'rename', 200, {'path': request.path, 'new_name': request.new_name}, user_id=session['user_id'], collection_id=collection_id)
             await index.indexing_files(collection_id, collection_name, jwt_token=session['jwt_tokens']['minio'], encryption_key=collection_key, files=new_paths)
@@ -284,7 +306,7 @@ async def create_directory(collection_id: int, request: NewFolderRequest, sessio
             key = session['user_key']
             collection_key = database.get_collection_key(
                 collection_id, session['user_id'], key)
-            await minio.new_folder(database.get_collection_name(collection_id), request.name, request.path, SseCustomerKey(collection_key), session['jwt_tokens']['minio'])
+            await s3.new_folder(database.get_collection_name(collection_id), request.name, request.path, SseCustomerKey(collection_key), session['jwt_tokens']['minio'])
             database.add_log(
                 'create_folder', 200, {'path': request.path, 'name': request.name}, user_id=session['user_id'], collection_id=collection_id)
         except Exception as error:
@@ -310,7 +332,7 @@ async def upload_file(file: UploadFile, collection_id: int, path: str = '/', arc
             collection_key = database.get_collection_key(
                 collection_id, session['user_id'], key)
             collection_name = database.get_collection_name(collection_id)
-            await minio.upload_file(collection_name, file, path, SseCustomerKey(collection_key), session['jwt_tokens']['minio'], overwrite=access_type != 4, is_archive=archive)
+            await s3.upload_file(collection_name, file, path, SseCustomerKey(collection_key), session['jwt_tokens']['minio'], overwrite=access_type != 4, is_archive=archive)
             database.add_log(
                 'upload', 200, {'file_name': file.filename, 'path': path}, user_id=session['user_id'], collection_id=collection_id)
             if not archive:
@@ -335,7 +357,7 @@ async def upload_file(file: UploadFile, collection_id: int, path: str = '/', arc
 async def create_collection(name: str, session: dict = Depends(get_current_user)) -> int:
     try:
         name = name.strip()
-        await minio.create_bucket(name, session['jwt_tokens']['minio'])
+        await s3.create_bucket(name, session['jwt_tokens']['minio'])
         collection_id = database.create_collection(
             name, session['user_id'])
         database.add_log('create_collection', 200,
@@ -450,7 +472,7 @@ async def get_groups(session: dict = Depends(get_current_user)) -> list | None:
 async def remove_collection(collection_id: int, session: dict = Depends(get_current_user)):
     collection_name = database.get_collection_name(collection_id)
     try:
-        await minio.remove_bucket(database.get_collection_name(collection_id), session['jwt_tokens']['minio'])
+        await s3.remove_bucket(database.get_collection_name(collection_id), session['jwt_tokens']['minio'])
     except HTTPException as error:
         database.add_log('remove_collection', error.status_code, {
                          'error': error.detail, 'collection_id': collection_id, 'collection_name': collection_name}, user_id=session['user_id'])
@@ -694,7 +716,7 @@ async def get_file_info(collection_id: int, path: str, is_dir: bool, session: di
     if database.get_type_access(collection_id, session['user_id']) in access:
         try:
             if is_dir:
-                return await minio.get_dir_info(database.get_collection_name(collection_id), path, session['jwt_tokens']['minio'])
+                return await s3.get_dir_info(database.get_collection_name(collection_id), path, session['jwt_tokens']['minio'])
             else:
                 return await opensearch.get_document(f'{collection_id}/{path.strip('/')}', config.opensearch_files_index)
         except Exception as error:

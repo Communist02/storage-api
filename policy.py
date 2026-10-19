@@ -84,7 +84,7 @@ async def create_policy_to_user(username: str, collections: list) -> str:
     # }
 
     auth = AwsSigV4Auth(
-        credentials=AwsCredentials(config.access_key, config.secret_key),
+        credentials=AwsCredentials(config.s3_access_key, config.s3_secret_key),
         region='us-east-1',
         service='s3'
     )
@@ -163,7 +163,7 @@ async def create_policy_to_all(collections: list) -> str:
 
     # date = datetime.datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')
     auth = AwsSigV4Auth(
-        credentials=AwsCredentials(config.access_key, config.secret_key),
+        credentials=AwsCredentials(config.s3_access_key, config.s3_secret_key),
         region='us-east-1',
         service='s3'
     )

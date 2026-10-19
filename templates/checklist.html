@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Проверка конфигурации</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: #f5f7fa;
+            margin: 0;
+            padding: 2rem;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+            padding: 2rem;
+        }
+
+        h1 {
+            font-size: 1.6rem;
+            margin-top: 0;
+            margin-bottom: 1.5rem;
+            color: #222;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th,
+        td {
+            text-align: left;
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #e9ecef;
+            vertical-align: top;
+        }
+
+        th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #555;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        .status-icon {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .status-success .status-icon {
+            background-color: #28a745;
+        }
+
+        .status-fail .status-icon {
+            background-color: #dc3545;
+        }
+
+        .status-warning .status-icon {
+            background-color: #ffc107;
+        }
+
+        .status-success td:first-child {
+            color: #155724;
+        }
+
+        .status-fail td:first-child {
+            color: #721c24;
+        }
+
+        .status-warning td:first-child {
+            color: #856404;
+        }
+
+        .detail {
+            color: #6c757d;
+            font-size: 0.9rem;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.2rem 0.6rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .badge-success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .badge-fail {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .badge-warning {
+            background: #fff3cd;
+            color: #856404;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>Проверка конфигурации</h1>
+        <table>
+            <thead>
+                <tr>
+                    <th>Параметр</th>
+                    <th>Статус</th>
+                    <th>Детали</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for info in status %}
+                <tr class="status-{{ info.status }}">
+                    <td>
+                        <span class="status-icon"></span>
+                        {{ info.name }}
+                    </td>
+                    <td>
+                        {% if info.status == 'success' %}
+                        <span class="badge badge-success">OK</span>
+                        {% elif info.status == 'fail' %}
+                        <span class="badge badge-fail">Ошибка</span>
+                        {% elif info.status == 'warning' %}
+                        <span class="badge badge-warning">Внимание</span>
+                        {% endif %}
+                    </td>
+                    <td class="detail">{{ info.detail }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</body>
+
+</html>

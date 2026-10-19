@@ -7,3 +7,4 @@ zipstream
 opensearch-py[async]
 httpx-aws-auth
 truststore
+httpx2

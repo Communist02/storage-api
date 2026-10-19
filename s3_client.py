@@ -1,6 +1,7 @@
 import io
 import ssl
 from typing import Iterable, cast
+import httpx2
 from minio import Minio
 from minio.sse import SseCustomerKey
 from minio.error import S3Error
@@ -12,9 +13,9 @@ from minio.deleteobjects import DeleteObject
 import truststore
 import urllib3
 from config import config
-from get_token import get_sts_token
 import zipstream
 from fastapi.concurrency import run_in_threadpool
+import xml.etree.ElementTree as ET
 
 
 class S3Client:
@@ -25,10 +26,52 @@ class S3Client:
         self.http_client = urllib3.PoolManager(
             ssl_context=ssl_context) if self.cert_check else None
         self.admin_client = Minio(
-            self.endpoint, config.access_key, config.secret_key, secure=True, cert_check=self.cert_check, http_client=self.http_client)
+            self.endpoint, config.s3_access_key, config.s3_secret_key, secure=True, cert_check=self.cert_check, http_client=self.http_client)
+
+    async def get_sts_token(self, token: str, duration=2592000) -> dict | None:
+        try:
+            async with httpx2.AsyncClient(verify=False if config.debug_mode else truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)) as client:
+                response = await client.post(
+                    f'https://{self.endpoint}/{f"?DurationSeconds={duration}" if duration != 0 else ""}',
+                    params={'Action': 'AssumeRoleWithWebIdentity',
+                            'WebIdentityToken': token, 'Version': '2011-06-15'},
+                    timeout=15
+                )
+        except httpx2.TimeoutException as e:
+            raise HTTPException(
+                status_code=500,
+                detail={
+                    'error': 'Timeout',
+                    'message': "Couldn't get the STS token"
+                }
+            )
+
+        if response.status_code == 200:
+            xml_response = response.text
+            # print(response.text)
+            root = ET.fromstring(xml_response)
+            access_key = root.find(
+                './/{https://sts.amazonaws.com/doc/2011-06-15/}AccessKeyId')
+            secret_key = root.find(
+                './/{https://sts.amazonaws.com/doc/2011-06-15/}SecretAccessKey')
+            session_token = root.find(
+                './/{https://sts.amazonaws.com/doc/2011-06-15/}SessionToken')
+            if access_key is not None and secret_key is not None and session_token is not None:
+                credentials = {
+                    'access_key': access_key.text,
+                    'secret_key': secret_key.text,
+                    'session_token': session_token.text,
+                }
+                return credentials
+        else:
+            print('Ошибка получения STS токена:', response.status_code)
+            if config.debug_mode:
+                print(token)
+                print(response.text)
+                print(response.status_code)
 
     async def get_list_files(self, bucket_name: str, path: str, recursive: bool, jwt_token: str) -> list[dict]:
-        auth = await get_sts_token(jwt_token, 'https://' + config.s3_url, 0)
+        auth = await self.get_sts_token(jwt_token, 0)
         if auth is None:
             raise HTTPException(
                 status_code=500,
@@ -125,7 +168,7 @@ class S3Client:
         }
 
     async def get_buckets(self, jwt_token: str) -> list[str]:
-        auth = await get_sts_token(jwt_token, 'https://' + config.s3_url, 0)
+        auth = await self.get_sts_token(jwt_token, 0)
         if auth is None:
             raise HTTPException(
                 status_code=500,
@@ -162,7 +205,7 @@ class S3Client:
                 )
 
     async def delete_files(self, bucket_name: str, paths: list[str], jwt_token: str):
-        auth = await get_sts_token(jwt_token, 'https://' + config.s3_url, 0)
+        auth = await self.get_sts_token(jwt_token, 0)
         if auth is None:
             raise HTTPException(
                 status_code=500,
@@ -220,7 +263,7 @@ class S3Client:
                 )
 
     async def download_file(self, bucket_name: str, file_path: str, preview: bool, encryption_key: SseCustomerKey | None, jwt_token: str, range_header: str | None = None) -> StreamingResponse:
-        auth = await get_sts_token(jwt_token, 'https://' + config.s3_url, 0)
+        auth = await self.get_sts_token(jwt_token, 0)
         if auth is None:
             raise HTTPException(
                 status_code=500,
@@ -309,7 +352,7 @@ class S3Client:
                 )
 
     async def download_files(self, bucket_name: str, file_paths: list, encryption_key: SseCustomerKey, jwt_token: str) -> StreamingResponse:
-        auth = await get_sts_token(jwt_token, 'https://' + config.s3_url, 0)
+        auth = await self.get_sts_token(jwt_token, 0)
         if auth is None:
             raise HTTPException(
                 status_code=500,
@@ -382,7 +425,7 @@ class S3Client:
                 )
 
     async def copy_files(self, source_bucket_name: str, source_paths: list[str], destination_bucket_name: str, destination_path: str, source_encryption_key: SseCustomerKey, destination_encryption_key: SseCustomerKey, jwt_token: str):
-        auth = await get_sts_token(jwt_token, 'https://' + config.s3_url, 0)
+        auth = await self.get_sts_token(jwt_token, 0)
         if auth is None:
             raise HTTPException(
                 status_code=500,
@@ -457,7 +500,7 @@ class S3Client:
                         )
 
     async def rename_file(self, bucket_name: str, path: str, new_name: str, encryption_key: SseCustomerKey, jwt_token: str) -> list:
-        auth = await get_sts_token(jwt_token, 'https://' + config.s3_url, 0)
+        auth = await self.get_sts_token(jwt_token, 0)
         if auth is None:
             raise HTTPException(
                 status_code=500,
@@ -540,7 +583,7 @@ class S3Client:
         return new_paths
 
     async def upload_file(self, bucket_name: str, file: UploadFile, path: str, encryption_key: SseCustomerKey, jwt_token: str, overwrite=True, is_archive=False):
-        auth = await get_sts_token(jwt_token, 'https://' + config.s3_url, 0)
+        auth = await self.get_sts_token(jwt_token, 0)
         if auth is None:
             raise HTTPException(
                 status_code=500,
@@ -582,7 +625,7 @@ class S3Client:
             )
 
     async def new_folder(self, bucket_name: str, name: str, path: str, encryption_key: SseCustomerKey, jwt_token: str):
-        auth = await get_sts_token(jwt_token, 'https://' + config.s3_url, 0)
+        auth = await self.get_sts_token(jwt_token, 0)
         if auth is None:
             raise HTTPException(
                 status_code=500,
@@ -615,7 +658,7 @@ class S3Client:
                 )
 
     async def create_bucket(self, bucket_name: str, jwt_token: str):
-        auth = await get_sts_token(jwt_token, 'https://' + config.s3_url, 0)
+        auth = await self.get_sts_token(jwt_token, 0)
         if auth is None:
             raise HTTPException(
                 status_code=500,
@@ -653,7 +696,7 @@ class S3Client:
                 )
 
     async def remove_bucket(self, bucket_name: str, jwt_token: str):
-        auth = await get_sts_token(jwt_token, 'https://' + config.s3_url, 0)
+        auth = await self.get_sts_token(jwt_token, 0)
         if auth is None:
             raise HTTPException(
                 status_code=500,

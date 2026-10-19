@@ -130,8 +130,6 @@ class MainDatabase:
             max_overflow=20,
             echo=False,
         )
-        self.connection = self.engine.connect()
-        # Base.metadata.create_all(self.engine)
 
     def create_collection(self, name: str, user_id: int) -> int:
         collection_key = secrets.token_bytes(32)
@@ -761,7 +759,8 @@ class MainDatabase:
 
     def get_status(self) -> dict:
         with Session(self.engine) as session:
-            status = {'name': 'postgresql', 'host': config.db_host, 'type': 'database', 'port': 5432}
+            status = {'name': 'postgresql', 'host': config.db_host,
+                      'type': 'database', 'port': 5432}
             try:
                 session.execute(select(1))
                 return status | {'status': 'active', 'detail': 'Database is active and reachable'}
