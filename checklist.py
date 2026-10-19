@@ -11,7 +11,7 @@ class CheckStatus(BaseModel):
 
 
 def check_config(key: str, fail_text: str = '', success_text: str = '', name: str | None = None, is_warning: bool = False) -> CheckStatus:
-    is_fail = config.get(key) == default_config.get(key) or not config.get(key)
+    is_fail = config.get(key) == default_config.get(key) or (config.get(key) != False and not config.get(key))
     if name is None:
         name = f'[{key}] указан в конфиге'
     fail_status = 'fail' if not is_warning else 'warning'

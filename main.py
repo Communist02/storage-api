@@ -1,5 +1,6 @@
 import asyncio
 from contextlib import asynccontextmanager
+from typing import Any
 from fastapi.templating import Jinja2Templates
 import httpx
 from minio.sse import SseCustomerKey
@@ -108,7 +109,7 @@ async def checklist(request: Request):
 
 
 @app.get('/status')
-async def get_status() -> dict[str, str | int | bool | list[dict]]:
+async def get_status() -> dict[str, Any]:
     status = {
         'status': 'active',  # active, inactive, failed
         'type': 'api',
