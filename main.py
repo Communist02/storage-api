@@ -2,7 +2,7 @@ import asyncio
 from contextlib import asynccontextmanager
 from typing import Any
 from fastapi.templating import Jinja2Templates
-import httpx
+import httpx2
 from minio.sse import SseCustomerKey
 from fastapi import Depends, FastAPI, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
@@ -71,7 +71,7 @@ async def lifespan(app: FastAPI):
     # Инициализация при запуске
     try:
         await create_policy_to_all(database.get_absolute_access_to_all_collections())
-    except httpx.ConnectError as error:
+    except httpx2.ConnectError as error:
         print('Не удалось подключиться к S3 хранилищу и/или Opensearch')
         print(error)
 

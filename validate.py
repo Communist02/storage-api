@@ -1,8 +1,9 @@
 import base64
 import ssl
+from typing import Any
 from fastapi import Cookie, Depends, HTTPException, Query
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-import httpx
+import httpx2
 from config import config
 import truststore
 
@@ -10,7 +11,7 @@ import truststore
 security = HTTPBearer(auto_error=False)
 
 
-async def validate_token(token: str) -> dict | None:
+async def validate_token(token: str) -> dict[str, Any] | None:
     """
     Проверяет токен через сервис авторизации.
     Возвращает данные пользователя или None.
@@ -23,7 +24,7 @@ async def validate_token(token: str) -> dict | None:
     else:
         print("Client certificate or private key not provided. Skipping client certificate authentication.")
 
-    async with httpx.AsyncClient(verify=context) as client:
+    async with httpx2.AsyncClient(verify=context) as client:
         response = await client.post(
             f'{config.auth_api_url}/introspect',
             headers={'Authorization': f'Bearer {token}'},
@@ -31,11 +32,12 @@ async def validate_token(token: str) -> dict | None:
     if response.status_code == 200:
         session = response.json()
         if session['active'] == True:
-            session['user_key'] = base64.urlsafe_b64decode(session['user_key'].encode())
+            session['user_key'] = base64.urlsafe_b64decode(
+                session['user_key'].encode())
             return session
 
 
-async def get_auth_status() -> dict:
+async def get_auth_status() -> dict[str, Any]:
     context = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
     status = {'host': config.auth_api_url.replace('http://', '').replace('https://', '').split(
         ':')[0], 'type': 'api', 'port': int(config.auth_api_url.split(':')[-1])}
@@ -49,7 +51,7 @@ async def get_auth_status() -> dict:
         status['detail'] = message
 
     try:
-        async with httpx.AsyncClient(verify=context) as client:
+        async with httpx2.AsyncClient(verify=context) as client:
             response = await client.get(
                 f'{config.auth_api_url}/status'
             )
@@ -67,7 +69,7 @@ async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     cookie_token: str | None = Cookie(None, alias="token"),
     query_token: str | None = Query(None, alias="token")
-) -> dict:
+) -> dict[str, Any]:
     """
     Зависимость для получения текущего пользователя.
     Используется в защищенных маршрутах.

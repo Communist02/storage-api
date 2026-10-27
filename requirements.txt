@@ -5,6 +5,6 @@ SQLAlchemy
 psycopg2-binary
 zipstream
 opensearch-py[async]
-httpx-aws-auth
+httpx2-aws-auth
 truststore
 httpx2
